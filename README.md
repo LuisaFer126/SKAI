@@ -94,6 +94,17 @@ frontend/
 	src/               # UI Chat + API client (axios)
 ```
 
+# TABLAS PARA EL SUPABASE
+
+-- Tabla Usuarios CREATE TABLE "User" ( userId SERIAL PRIMARY KEY, email TEXT UNIQUE NOT NULL, name TEXT, password_hash TEXT NOT NULL, created_at TIMESTAMP DEFAULT NOW() );
+
+-- Tabla Sesiones de Chat CREATE TABLE "ChatSession" ( sessionId SERIAL PRIMARY KEY, userId INT REFERENCES "User"(userId) ON DELETE CASCADE, startDate TIMESTAMP DEFAULT NOW(), endDate TIMESTAMP );
+
+-- Tabla Mensajes CREATE TABLE "Message" ( messageId SERIAL PRIMARY KEY, sessionId INT REFERENCES "ChatSession"(sessionId) ON DELETE CASCADE, author TEXT NOT NULL, -- 'user' o 'bot' content TEXT NOT NULL, createdAt TIMESTAMP DEFAULT NOW(), emotionType TEXT );
+
+-- Tabla Historial Usuario (puede usarse para resumen o perfil personalizado) CREATE TABLE "UserHistory" ( historyId SERIAL PRIMARY KEY, userId INT REFERENCES "User"(userId) ON DELETE CASCADE, summary TEXT, updatedAt TIMESTAMP DEFAULT NOW() );
+
+
 ## Notas
 Este es un ejemplo minimalista y educativo. No apto para producción sin endurecer seguridad y observabilidad.
 
