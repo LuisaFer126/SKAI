@@ -6,9 +6,10 @@ import { setAuthToken } from './api.js';
  * SKIA Frontend (refactor)
  * - Accesibilidad mejorada (ARIA, roles, labels)
  * - Mejor semántica y estados de carga/errores
- * - Tiping indicator y autoscroll robusto
- * - Layout responsive y estilos consistentes con el nuevo CSS
- * - No se cambia la integración con api.js
+ * - Indicator GIF en avatar cuando el bot escribe
+ * - Autoscroll robusto
+ * - Layout: izquierda sidebar (sesiones), derecha chat -> dentro: IA (avatar) izquierda / mensajes derecha
+ * - Persistencia con LocalStorage (token, user, sesión)
  */
 
 const app = document.querySelector('#app');
@@ -34,7 +35,6 @@ function render() {
   }
   app.innerHTML = chatView();
   bindChat();
-  // Asegurar autoscroll al abrir chat
   queueMicrotask(scrollMessagesBottom);
 }
 
@@ -45,13 +45,13 @@ function authView() {
     <div class="auth-grid card-outer">
       <div class="brand-pane">
         <header class="brand">
-          <div class="logo-circle" aria-hidden="true">SKAI</div>
-          <h1 class="site-title">SKAI</h1>
+          <div class="logo-circle" aria-hidden="true"><img src="/favicon.svg" alt="Ilustración SKIA" /></div>
+          <h1 class="site-title">SKIA</h1>
           <p class="tagline">Acompañamiento emocional con IA</p>
         </header>
 
         <figure class="brand-image" aria-label="Imagen de presentación">
-          <img src="/01.png" alt="Ilustración SKIA" />
+          <img src="/saludo.gif" alt="Ilustración SKIA" />
         </figure>
 
         <section class="brand-copy">
@@ -102,17 +102,22 @@ function authView() {
   </section>`;
 }
 
+// ---------- CHAT VIEW: sidebar izquierda + panel derecho con 2 columnas ----------
 function chatView() {
-  // Generar lista completa de sesiones
-  const allSessionsHtml = state.sessions
-    .map((s) => {
-      const active = s.sessionid === state.currentSessionId ? 'is-active' : '';
-      const totalMessages = s.totalMessages || 0; // Assuming `totalMessages` is part of the session object
-      return `<li class="session ${active}" data-id="${s.sessionid}" role="button" tabindex="0" aria-label="Abrir chat ${s.sessionid}">
-        <span>Chat activos </span>
+  const allSessionsHtml = state.sessions.map((s, idx) => {
+    const active = s.sessionid === state.currentSessionId ? 'is-active' : '';
+    const seq = s.seq ?? (idx + 1);
+    const title = s.title ? escapeHtml(s.title) : `Chat ${seq}`;
+    const total = s.totalMessages ?? 0;
+    const date = s.updatedAt || s.createdAt;
+    const when = date ? new Date(date).toLocaleString() : '';
+    return `
+      <li class="session ${active}" data-id="${s.sessionid}" role="button" tabindex="0" aria-label="Abrir ${title}">
+        <div class="session-row">
+          <div class="session-title">${title}</div>
+        </div>
       </li>`;
-    })
-    .join('');
+  }).join('');
 
   const msgsHtml = state.messages.length
     ? state.messages.map((m) => messageBubble(m)).join('')
@@ -120,10 +125,12 @@ function chatView() {
 
   return `
   <section class="chat-shell fade-in">
+    <!-- Columna Izquierda: sidebar (sesiones) -->
     <aside class="sidebar card-inner" aria-label="Lista de chats">
       <div class="sidebar-head">
         <button id="newSession" class="btn btn--primary full" title="Nuevo chat">Nuevo chat</button>
-        <p class="small muted">Total de chats en tu cuenta: ${state.sessions.length}</p>
+        <p class="small muted">Tus chats: ${state.sessions.length}</p>
+        <button id="showAllChats" class="btn full" title="Ver todos los chats">Mostrar todos los chats</button>
       </div>
       <ul class="sessions" id="sessionList">${allSessionsHtml}</ul>
       <div class="sidebar-foot">
@@ -131,6 +138,7 @@ function chatView() {
       </div>
     </aside>
 
+    <!-- Columna Derecha: panel de chat (con 2 columnas internas) -->
     <main class="chat card-inner" aria-live="polite" aria-busy="${state.loading}">
       <header class="chat-head">
         <h2 class="chat-title">SKIA</h2>
@@ -140,9 +148,28 @@ function chatView() {
         </div>
       </header>
 
-      <section class="messages" id="messages" role="log">
-        ${msgsHtml}
-      </section>
+      <!-- NUEVO: cuerpo a dos columnas -->
+      <div class="chat-body">
+        <!-- Izquierda: IA / Avatar -->
+        <aside class="ai-pane">
+          <div class="ai-avatar-box">
+            <img 
+              id="botAvatar"
+              class="ai-avatar"
+              src="${state.typing ? '/saludo.gif' : '/saludo.gif'}"
+              alt="Avatar de SKIA"
+            />
+          </div>
+          <p class="small muted" style="margin:.4rem 0 0 0;">
+            ${state.typing ? 'Escribiendo…' : 'Listo para escucharte'}
+          </p>
+        </aside>
+
+        <!-- Derecha: Mensajes -->
+        <section class="messages" id="messages" role="log">
+          ${msgsHtml}
+        </section>
+      </div>
 
       <footer class="composer">
         <div class="composer-row">
@@ -156,7 +183,6 @@ function chatView() {
     </main>
   </section>`;
 }
-
 
 function messageBubble(m) {
   const role = m.author === 'user' ? 'user' : 'bot';
@@ -215,6 +241,11 @@ function bindAuth() {
       state.token = data.token;
       state.user = data.user;
       setAuthToken(state.token);
+
+      // Persistencia
+      localStorage.setItem('skia_token', state.token);
+      localStorage.setItem('skia_user', JSON.stringify(state.user));
+
       await loadSessions();
       render();
     } catch (err) {
@@ -227,12 +258,22 @@ function bindAuth() {
 
 function bindChat() {
   document.querySelector('#logout')?.addEventListener('click', () => {
+    // Limpiar persistencia
+    localStorage.removeItem('skia_token');
+    localStorage.removeItem('skia_user');
+    localStorage.removeItem('skia_current_session');
+
     Object.assign(state, { token: null, user: null, sessions: [], currentSessionId: null, messages: [] });
     render();
   });
 
   document.querySelector('#newSession')?.addEventListener('click', async () => {
     await startSession();
+  });
+
+  document.querySelector('#showAllChats')?.addEventListener('click', async () => {
+    await loadSessions();
+    render();
   });
 
   document.querySelectorAll('.session').forEach((li) => {
@@ -251,7 +292,6 @@ function bindChat() {
     }
   });
 
-  // Mejor autoscroll en montado
   scrollMessagesBottom();
 }
 
@@ -259,9 +299,30 @@ function bindChat() {
 async function loadSessions() {
   state.loading = true; renderPartialStatus();
   try {
-    state.sessions = await listSessions();
+    const raw = await listSessions();
+
+    // Normaliza + ordena + numera
+    const norm = (raw || []).map((s) => ({
+      sessionid: Number(s.sessionid ?? s.id ?? s.sessionId),
+      createdAt: new Date(s.createdAt ?? s.created_at ?? s.created_at_ts ?? Date.now()),
+      updatedAt: s.updatedAt ? new Date(s.updatedAt) : (s.updated_at ? new Date(s.updated_at) : null),
+      totalMessages: Number(s.totalMessages ?? s.total_messages ?? 0),
+      title: s.title || null,
+    })).sort((a, b) => a.createdAt - b.createdAt)
+      .map((s, idx) => ({ ...s, seq: idx + 1 }));
+
+    state.sessions = norm;
+
+    // Resolver sesión activa
     if (!state.currentSessionId && state.sessions.length) {
-      state.currentSessionId = state.sessions[0].sessionid;
+      const saved = Number(localStorage.getItem('skia_current_session') || '');
+      const exists = state.sessions.some(s => s.sessionid === saved);
+      state.currentSessionId = exists ? saved : state.sessions.at(-1).sessionid;
+      localStorage.setItem('skia_current_session', String(state.currentSessionId));
+    }
+
+    // Cargar mensajes de la sesión activa
+    if (state.currentSessionId) {
       state.messages = await getMessages(state.currentSessionId);
     }
   } finally {
@@ -273,8 +334,12 @@ async function startSession() {
   state.loading = true; renderPartialStatus();
   try {
     const s = await createSession();
-    state.currentSessionId = s.sessionid;
+    state.currentSessionId = Number(s.sessionid ?? s.id ?? s.sessionId);
     state.messages = [];
+
+    // Guardar sesión activa
+    localStorage.setItem('skia_current_session', String(state.currentSessionId));
+
     await loadSessions();
     render();
   } catch (err) {
@@ -288,6 +353,10 @@ async function openSession(id) {
   state.loading = true; renderPartialStatus();
   try {
     state.currentSessionId = Number(id);
+
+    // Guardar sesión activa
+    localStorage.setItem('skia_current_session', String(state.currentSessionId));
+
     state.messages = await getMessages(id);
     render();
   } catch (err) {
@@ -313,32 +382,29 @@ async function sendCurrentMessage() {
   const optimistic = { messageid: 'temp' + Date.now(), author: 'user', content: text };
   state.messages.push(optimistic);
   render();
-  scrollMessagesBottom();
+  scrollMessagesBottom(true);
 
   state.sending = true;
   state.typing = true;
-  renderPartialStatus();
+  renderPartialStatus(); // cambia avatar a GIF
 
   try {
     const resp = await sendMessage(state.currentSessionId, text);
-    // Reemplazo simple: quitamos el optimista y agregamos respuesta real
     state.messages = state.messages.filter((m) => m !== optimistic).concat([resp.user, resp.bot]);
     render();
-    scrollMessagesBottom();
+    scrollMessagesBottom(true);
   } catch (err) {
     alert('Error enviando mensaje: ' + (err.response?.data?.error || err.message));
-    // En caso de error devolvemos el texto al textarea
     textarea.value = text;
   } finally {
     state.sending = false;
     state.typing = false;
-    renderPartialStatus();
+    renderPartialStatus(); // vuelve avatar a PNG
   }
 }
 
 // ---------- HELPERS ----------
 function renderPartialStatus() {
-  // Actualiza badges de estado sin re-render completo (si es posible)
   const main = document.querySelector('.chat');
   if (main) main.setAttribute('aria-busy', String(state.loading));
   const head = document.querySelector('.status-row');
@@ -347,6 +413,13 @@ function renderPartialStatus() {
       ${state.loading ? '<span class="dot dot--pulse" aria-label="Cargando"></span><span class="small">Cargando…</span>' : ''}
       ${state.typing ? '<span class="dot dot--typing" aria-label="Escribiendo"></span><span class="small">El bot está escribiendo…</span>' : ''}
     `;
+  }
+
+  // Cambia PNG/GIF sin re-render completo
+  const av = document.getElementById('botAvatar');
+  if (av) {
+    const desired = state.typing ? '/bot-typing.gif' : '/bot.png';
+    if (av.getAttribute('src') !== desired) av.setAttribute('src', desired);
   }
 }
 
@@ -361,15 +434,40 @@ function setStatus(selector, text) {
   if (el) el.textContent = text || '';
 }
 
-function scrollMessagesBottom() {
+function scrollMessagesBottom(force = false) {
   const box = document.querySelector('#messages');
   if (!box) return;
-  box.scrollTop = box.scrollHeight;
+  const nearBottom = (box.scrollHeight - box.scrollTop - box.clientHeight) < 40;
+  if (force || nearBottom) {
+    box.scrollTop = box.scrollHeight;
+  }
 }
 
 function escapeHtml(str) {
   return String(str).replace(/[&<>'"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[c]));
 }
 
-// Init
-render();
+// ---------- INIT ----------
+(async function init() {
+  const token = localStorage.getItem('skia_token');
+  const user = localStorage.getItem('skia_user');
+  const savedSession = localStorage.getItem('skia_current_session');
+
+  if (token && user) {
+    state.token = token;
+    state.user = JSON.parse(user);
+    setAuthToken(token);
+    if (savedSession) state.currentSessionId = Number(savedSession);
+
+    try {
+      await loadSessions();
+    } catch (e) {
+      localStorage.removeItem('skia_token');
+      localStorage.removeItem('skia_user');
+      localStorage.removeItem('skia_current_session');
+      Object.assign(state, { token: null, user: null, sessions: [], currentSessionId: null, messages: [] });
+    }
+  }
+
+  render();
+})();

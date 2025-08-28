@@ -69,10 +69,9 @@ body{
 /* Brand / portada */
 .brand{display:flex;align-items:center;gap:12px;margin:0 0 .25rem 0}
 .logo-circle{
-  width:56px;height:56px;border-radius:12px;
+  width:5px;height:5px;border-radius:5px;
   background: var(--grad-primary);
   display:flex;align-items:center;justify-content:center;
-  color:white;font-weight:800
 }
 .site-title{
   font-family: var(--font-display);
@@ -143,20 +142,46 @@ body{
 .btn:active{transform:translateY(0)}
 .btn[aria-busy="true"]{opacity:.7;pointer-events:none}
 
-/* CHAT */
+/* =========================
+   LAYOUT DEL CHAT (2 columnas)
+   ========================= */
 .chat-shell{
   display:grid;
-  grid-template-columns: 260px 1fr;
+  grid-template-columns: 300px 1fr;  /* Izquierda sidebar (sesiones) / Derecha panel de chat */
   gap: 1rem;
   padding: 1rem 2rem;
+  height: 100dvh;                    /* ocupa toda la ventana */
 }
 @media (max-width: 900px){
-  .chat-shell{grid-template-columns:1fr;padding:1rem}
+  .chat-shell{
+    grid-template-columns:1fr;
+    padding:1rem;
+    height:auto;
+    min-height:100dvh;
+  }
 }
 
-.sidebar{display:flex;flex-direction:column;gap:.8rem}
+/* Panel izquierdo (sidebar = sesiones) */
+.sidebar{
+  display:flex;
+  flex-direction:column;
+  gap:.8rem;
+  min-height:0; /* permite que la lista de sesiones haga overflow */
+}
 .sidebar-head, .sidebar-foot{display:flex;flex-direction:column;gap:.5rem}
-.sessions{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.4rem;max-height:52vh;overflow:auto}
+
+/* Lista de sesiones (scroll interno) */
+.sessions{
+  list-style:none;
+  margin:0;
+  padding:0;
+  display:flex;
+  flex-direction:column;
+  gap:.4rem;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow:auto;
+}
 .session{
   display:flex;align-items:center;gap:.6rem;
   padding:.6rem .7rem;border-radius:10px;border:1px solid var(--border);
@@ -165,17 +190,74 @@ body{
 .session.is-active{background:rgba(var(--accent-rgb),.09);border-color:rgba(var(--accent-rgb),.18)}
 .session:focus{outline:2px solid rgba(var(--accent-rgb),.5);outline-offset:2px}
 
-.chat{display:flex;flex-direction:column;gap:.8rem;min-height:66vh}
-.chat-head{display:flex;align-items:center;justify-content:space-between}
+/* Panel derecho (chat) */
+.chat{
+  display:flex;
+  flex-direction:column;
+  gap:.8rem;
+  min-height:0;      /* clave para permitir overflow del hijo .messages */
+  height: 100%;
+}
+.chat-head{
+  display:flex;align-items:center;justify-content:space-between;
+  position: sticky; top: 0; z-index: 1; background: inherit;
+}
 .chat-title{margin:.2rem 0}
 .status-row{display:flex;align-items:center;gap:.5rem;min-height:24px}
 
+/* ====== NUEVO: cuerpo del chat a 2 columnas ====== */
+.chat-body{
+  display: grid;
+  grid-template-columns: 250px 1fr; /* izquierda avatar IA, derecha mensajes */
+  gap: 1rem;
+  flex: 1 1 auto;   /* ocupa el alto disponible del main */
+  min-height: 0;    /* habilita overflow del hijo .messages */
+}
+
+/* Columna izquierda: IA/Avatar (no scrollea) */
+.ai-pane{
+  display: flex;
+  flex-direction: column;
+  align-items: center;   /* centra en horizontal */
+  justify-content: center;/* centra en vertical */
+  gap: .75rem;           /* separación razonable */
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: .8rem;
+  background: rgba(255,255,255,.02);
+  /* opcional si el padre no estira a toda la altura: */
+  /* height: 100%; */
+}
+
+.ai-avatar-box{
+  width: 200px;
+  height: 200px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-soft);
+}
+.ai-avatar{
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* Columna derecha: mensajes (sí scrollea) */
 .messages{
   display:flex;flex-direction:column;gap:.7rem;
   overflow:auto;padding:.8rem;background: rgba(255,255,255,.01);
   border:1px solid var(--border);border-radius:12px;min-height:320px;
+  flex: 1 1 auto;
+  min-height: 0;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding-right: 4px;
 }
 .empty{padding:.5rem 0}
+
+/* Burbujas */
 .message{display:flex;gap:.6rem;align-items:flex-start}
 .avatar{
   width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;
@@ -194,7 +276,7 @@ body{
 .who{font-weight:800}
 
 /* Composer */
-.composer{display:flex;flex-direction:column;gap:.4rem}
+.composer{display:flex;flex-direction:column;gap:.4rem; position: sticky; bottom: 0; z-index: 1; background: inherit;}
 .composer-row{display:grid;grid-template-columns: 1fr auto; gap:.6rem; align-items:end}
 .textarea{resize:vertical;max-height:200px;min-height:42px}
 .send-btn{min-width:96px}
@@ -221,3 +303,13 @@ body{
 /* Animaciones */
 .fade-in{animation:fadeIn .45s ease both}
 @keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+/* Responsive: apilar avatar y chat en móvil */
+@media (max-width: 800px){
+  .chat-body{
+    grid-template-columns: 1fr;
+  }
+  .ai-pane{
+    align-items: center;
+  }
+}
