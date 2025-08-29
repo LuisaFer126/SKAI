@@ -16,6 +16,24 @@ import {
 
 const app = document.querySelector('#app');
 
+/* ====== NUEVO: activos del avatar emocional ======
+   Cambia AQUÍ las rutas de tus GIF/PNG del avatar según la emoción. */
+const EMOTION_ASSETS = {
+  predeterminado: { src: '/reposo.gif', alt: 'Reposo…' }, // Gif predeterminado
+  pensando: { src: '/pensando.gif', alt: 'Pensando…' },
+  feliz:    { src: '/feliz.gif',    alt: 'Feliz'    },
+  triste:   { src: '/triste.gif',   alt: 'Triste'   },
+};
+
+// Fallback sencillo (por si el backend no envía emoción)
+function fallbackEmotion(text = '') {
+  const t = String(text).toLowerCase();
+  if (/[😂🤣😊🙂😁😄😍❤️✨🙌🎉]/u.test(t)) return 'feliz';
+  if (/[😞😔😢😭😓😩😡💔]/u.test(t)) return 'triste';
+  if (/(lo siento|lamento|triste|difícil|complicado|preocup|ansiedad|deprim|fracaso|mal|duro|duele)/.test(t)) return 'triste';
+  return 'feliz';
+}
+
 const state = {
   token: null,
   user: null,
@@ -26,9 +44,8 @@ const state = {
   sending: false,
   typing: false,
   error: null,
-  // NUEVO: estado emocional del avatar
-  // valores: 'pensando' | 'feliz' | 'triste'
-  emotion: 'feliz',
+  emotion: 'predeterminado',  // Inicialmente en reposo
+  currentGif: 'predeterminado',  // Para gestionar el gif actual
 };
 
 // ---------- RENDER ROOT ----------
@@ -59,7 +76,7 @@ function authView() {
         </header>
 
         <figure class="brand-image" aria-label="Imagen de presentación">
-          <img src="/01.png" alt="Ilustración SKIA" />
+          <img src="/saludo.gif" alt="Ilustración SKIA" />
         </figure>
 
         <section class="brand-copy">
@@ -128,11 +145,10 @@ function chatView() {
     ? state.messages.map((m) => messageBubble(m)).join('')
     : `<div class="empty muted">No hay mensajes aún. Escribe para comenzar ✍️</div>`;
 
-  // Mapa de emociones (usa tus imágenes públicas)
-  const emotionMap = { pensando: '/pensando.png', feliz: '/feliz.png', triste: '/triste.png' };
-  const labelMap   = { pensando: 'Pensando…',      feliz: 'Feliz',       triste: 'Triste' };
-  const avatarSrc = emotionMap[state.emotion] || '/png.png';
-  const avatarAlt = labelMap[state.emotion] || 'Feliz';
+  // Avatar según emoción actual (usa el mapa central)
+  const cur = EMOTION_ASSETS[state.emotion] || EMOTION_ASSETS.predeterminado;
+  const avatarSrc = cur.src;
+  const avatarAlt = cur.alt;
 
   return `
   <section class="chat-shell fade-in">
@@ -187,6 +203,8 @@ function chatView() {
 function messageBubble(m) {
   const role = m.author === 'user' ? 'user' : 'bot';
   const label = m.author === 'user' ? 'Tú' : 'Bot';
+
+  // Solo mostramos el texto del mensaje (m.content) sin procesar la emoción
   return `<article class="message ${role}">
     <div class="avatar" aria-hidden="true">${role === 'user' ? 'T' : 'S'}</div>
     <div class="bubble"><strong class="who">${label}:</strong> ${escapeHtml(m.content)}</div>
@@ -372,7 +390,7 @@ async function sendCurrentMessage() {
 
   state.sending = true;
   state.typing = true;
-  state.emotion = 'pensando';
+  state.emotion = 'pensando';            // ← mientras enviamos
   updateEmotionAvatar();
   renderPartialStatus();
 
@@ -380,8 +398,15 @@ async function sendCurrentMessage() {
     const resp = await sendMessage(state.currentSessionId, text);
     state.messages = state.messages.filter((m) => m !== optimistic).concat([resp.user, resp.bot]);
 
-    // Respuesta OK → feliz
-    state.emotion = 'feliz';
+    // 👇 EMOCIÓN RECIBIDA DESDE BACKEND (gemini.js)
+    const be = String(resp?.bot?.emotion || '').toLowerCase();
+    if (be === 'feliz' || be === 'triste' || be === 'pensando') {
+      state.emotion = be;
+    } else {
+      // fallback local si por alguna razón no llegó el campo
+      state.emotion = fallbackEmotion(resp?.bot?.content || '');
+    }
+
     render();
     scrollMessagesBottom(true);
     updateEmotionAvatar();
@@ -404,13 +429,14 @@ function updateEmotionAvatar() {
   const img = document.getElementById('emotionAvatar');
   const label = document.getElementById('emotionLabel');
   if (!img) return;
-  const map = { pensando: '/pensando.png', feliz: '/feliz.png', triste: '/triste.png' };
-  const labels = { pensando: 'Pensando…', feliz: 'Feliz', triste: 'Triste' };
-  const src = map[state.emotion] || map.feliz;
-  const alt = labels[state.emotion] || labels.feliz;
-  if (img.getAttribute('src') !== src) img.setAttribute('src', src);
-  img.setAttribute('alt', alt);
-  if (label) label.textContent = alt;
+
+  // Comprobar si el gif ya terminó antes de cambiarlo
+  const cur = EMOTION_ASSETS[state.emotion] || EMOTION_ASSETS.predeterminado;
+  if (img.getAttribute('src') !== cur.src) {
+    img.setAttribute('src', cur.src);
+    img.setAttribute('alt', cur.alt);
+    if (label) label.textContent = cur.alt;
+  }
 }
 
 function renderPartialStatus() {

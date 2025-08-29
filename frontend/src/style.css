@@ -75,9 +75,6 @@ body{
 }
 .logo-circle img{width:60%;height:60%}
 
-
-
-
 .site-title{
   font-family: var(--font-display);
   font-size: clamp(2rem, 5vw, 2.6rem);
@@ -143,7 +140,7 @@ body{
 }
 .btn--primary{
   background: var(--grad-primary);
-  box-shadow: 0 12px 34px rgba(var(--accent-rgb),.18);
+  box-shadow: 0 12px 34px rgba(0,0,0,.18);
 }
 .btn:hover{transform:translateY(-1px);filter:brightness(1.03)}
 .btn:active{transform:translateY(0)}
@@ -207,15 +204,15 @@ body{
 }
 .chat-head{
   display:flex;align-items:center;justify-content:space-between;
-  position: sticky; top: 0; z-index: 1; background: inherit;
+  position: sticky; top: 0; z-index: 1; ;
 }
-.chat-title{margin:.2rem 0}
+.chat-title{margin:.2rem 0;background: var(--grad-primary);-webkit-background-clip:text;-webkit-text-fill-color:transparent;font-weight:700;font-size:1.4rem;line-height:1.1}
 .status-row{display:flex;align-items:center;gap:.5rem;min-height:24px}
 
 /* ====== CUERPO DEL CHAT: mensajes + avatar derecha ====== */
 .chat-body{
   display: grid;
-  grid-template-columns: 1fr 220px; /* mensajes | avatar */
+  grid-template-columns: 1fr 500px; /* mensajes | avatar */
   gap: 1rem;
   flex: 1 1 auto;
   min-height: 0;
@@ -228,22 +225,21 @@ body{
   align-items: center;
   justify-content: center;
   gap: .5rem;
-  border: 1px solid var(--border);
   border-radius: 12px;
   padding: .8rem;
-  background: rgba(255,255,255,.02);
+    background-color: #fcfcfc;
 }
 .emotion-pane img{
   width: 100%;
   height: auto;
-  border-radius: 12px;
+  border-radius: 100px;
   object-fit: cover;
-  box-shadow: var(--shadow-soft);
 }
 .emotion-label{
   color: var(--muted);
   font-weight: 700;
 }
+
 
 /* Columna derecha: mensajes (scrollea) */
 .messages{
@@ -309,5 +305,53 @@ body{
 @media (max-width: 800px){
   .chat-body{
     grid-template-columns: 1fr;
+  }
+}
+
+/* ===== Unir chat + avatar en un solo bloque ===== */
+.chat-body.merged{
+  gap: 0;                          /* sin separación entre columnas */
+}
+
+.chat-body.merged .messages,
+.chat-body.merged .emotion-pane{
+  background: rgba(255,255,255,.02);
+  border: 1px solid var(--border);
+}
+
+/* Redondeos coordinados para que parezca un solo card */
+.chat-body.merged .messages{
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.chat-body.merged .emotion-pane{
+  border-left: 0;                  /* sin “doble borde” en el centro */
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  width: 220px;                    /* ancho estable del panel de avatar */
+  /* sutil separador interno usando sombra */
+  box-shadow: inset 1px 0 0 rgba(255,255,255,.04);
+}
+
+/* Ajustes de padding para que el contenido quede alineado */
+.chat-body.merged .messages{ padding-right: .8rem; }
+.chat-body.merged .emotion-pane{ padding-left: .8rem; }
+
+/* En móvil, vuelve a apilar y recuperar bordes “completos” */
+@media (max-width: 800px){
+  .chat-body.merged{
+    gap: 1rem;
+  }
+  .chat-body.merged .messages{
+    border-top-right-radius: 12px;
+    border-bottom-right-radius: 12px;
+  }
+  .chat-body.merged .emotion-pane{
+    border-left: 1px solid var(--border);
+    border-top-left-radius: 12px;
+    border-bottom-left-radius: 12px;
+    width: auto;
+    box-shadow: none;
   }
 }

@@ -11,23 +11,99 @@ if (!apiKey) {
 const genAI = new GoogleGenerativeAI(apiKey || '');
 const model = () => genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
+// Heurística de respaldo por si el JSON falla
+function deriveEmotionFromText(text) {
+  if (!text) return 'feliz';
+  const t = String(text).toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+  // Emojis
+  if (/[😂🤣😊🙂😁😄😍❤️✨🙌🎉]/u.test(t)) return 'feliz';
+  if (/[😞😔😢😭😓😩😡💔]/u.test(t)) return 'triste';
+
+  // Palabras clave (ajústalas a tu dominio)
+  const positives = [
+    'me alegra','felicidade','excelente','genial','maravilloso','que bien',
+    'orgullo','lograste','me encanta','bravo','gracias'
+  ];
+  const negatives = [
+    'lo siento','lamento','triste','dificil','complicado','preocup',
+    'ansiedad','deprim','fracaso','mal','duro','duele'
+  ];
+
+  const posHit = positives.some(w => t.includes(w));
+  const negHit = negatives.some(w => t.includes(w));
+
+  if (posHit && !negHit) return 'feliz';
+  if (negHit && !posHit) return 'triste';
+
+  return 'feliz';
+}
+
 export async function generateBotReply(messages) {
   // messages: [{author, content}]
-  const history = messages.map(m => ({ role: m.author === 'user' ? 'user' : 'model', parts: [{ text: m.content }] }));
-  const systemGuidance = `Actúa como un acompañante virtual de apoyo emocional y regulación de emociones.
+  const history = messages.map(m => ({
+    role: m.author === 'user' ? 'user' : 'model',
+    parts: [{ text: m.content }]
+  }));
+
+  // Instruimos al modelo a devolver SOLO JSON válido
+  const systemGuidance = `
+Actúa como un acompañante virtual de apoyo emocional y regulación de emociones.
+
 Principios:
 1. Tono: cálido, empático, cercano, profesional sin sonar clínico.
 2. Objetivo: ayudar a que la persona se exprese, identifique y regule emociones; ofrecer psicoeducación ligera.
-3. No juzgar ni minimizar. Usa validación emocional: ("entiendo", "tiene sentido", "es comprensible").
-4. Fomenta autoconciencia con preguntas abiertas suaves ("¿Qué crees que necesitas ahora?", "¿Dónde notas esa emoción en tu cuerpo?").
-5. Brevedad dinámica: respuestas de 2–5 párrafos cortos máximo, evitar bloques largos.
-6. No des consejos médicos ni diagnósticos. Si hay indicios de autolesión / riesgo, anima a buscar ayuda profesional o líneas de emergencia locales sin alarmismo.
-7. Evita prometer confidencialidad absoluta; mantén neutralidad y seguridad.
-8. Promueve respiración consciente, grounding, journaling, pausas, contacto social saludable.
-Formato: Español natural, evita tecnicismos innecesarios, cero juicios, cero etiquetas clínicas sobre la persona.
-Si el usuario pide diagnóstico o medicación => responde que no puedes diagnosticar ni recetar y sugiere consultar a un profesional.
-Si el usuario expresa ideas suicidas claras => sugiere buscar inmediatamente ayuda profesional o líneas de emergencia locales y ofrece acompañamiento emocional.
-`;
-  const result = await model().generateContent({ contents: [ { role: 'user', parts: [{ text: systemGuidance }] }, ...history ] });
-  return result.response.text();
+3. No juzgar ni minimizar. Usa validación emocional.
+4. Fomenta autoconciencia con preguntas abiertas suaves.
+5. Respuestas de 2–5 párrafos cortos como máximo.
+6. No des consejos médicos ni diagnósticos. En riesgo, sugiere ayuda profesional/urgencias locales.
+7. Promueve respiración consciente, grounding, journaling, pausas, contacto social saludable.
+
+DEVUELVE ESTRICTAMENTE JSON VÁLIDO con esta forma:
+{
+  "answer": "texto al usuario (en español, sin markdown)",
+  "emotion": "feliz" | "triste"
 }
+
+Reglas para "emotion":
+- Usa "triste" si el contenido central del mensaje es de validación/acompañamiento ante dolor, frustración, pérdida, ansiedad o malestar predominante.
+- Usa "feliz" cuando reconozcas avances, alivio, gratitud o tono mayormente esperanzador/positivo.
+- No devuelvas otros campos ni comentarios fuera del JSON.
+`;
+
+  const generationConfig = {
+    responseMimeType: 'application/json',
+  };
+
+  const result = await model().generateContent({
+    contents: [
+      { role: 'user', parts: [{ text: systemGuidance }] },
+      ...history
+    ],
+    generationConfig
+  });
+
+  // Intentar parsear JSON
+  let text = '';
+  let emotion = 'feliz';
+  try {
+    const raw = result.response.text(); // debería ser JSON puro
+    const parsed = JSON.parse(raw);
+    text = String(parsed?.answer || '').trim();
+    const e = String(parsed?.emotion || '').toLowerCase();
+    emotion = (e === 'feliz' || e === 'triste') ? e : deriveEmotionFromText(text);
+  } catch {
+    // Fallback si no vino JSON válido
+    const fallback = result.response.text() || '';
+    text = fallback.trim();
+    emotion = deriveEmotionFromText(text);
+  }
+
+  // Devuelve listo para el frontend/API
+  return { text, emotion };
+}
+
+
+
+
