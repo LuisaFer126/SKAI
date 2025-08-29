@@ -2,13 +2,16 @@ import './style.css';
 import { register, login, listSessions, createSession, getMessages, sendMessage } from './api.js';
 import { setAuthToken } from './api.js';
 
+// ⬇️ NUEVO: persistencia centralizada en src/storage.js
+import {
+  getToken, setToken as persistToken,
+  getUser, setUser as persistUser,
+  getCurrentSessionId, setCurrentSessionId,
+  clearAllPersisted
+} from './storage.js';
+
 /**
- * SKIA Frontend (refactor)
- * - Accesibilidad mejorada (ARIA, roles, labels)
- * - Mejor semántica y estados de carga/errores
- * - Tiping indicator y autoscroll robusto
- * - Layout responsive y estilos consistentes con el nuevo CSS
- * - No se cambia la integración con api.js
+ * SKIA Frontend (refactor) + Avatar emocional + Storage externo
  */
 
 const app = document.querySelector('#app');
@@ -23,6 +26,9 @@ const state = {
   sending: false,
   typing: false,
   error: null,
+  // NUEVO: estado emocional del avatar
+  // valores: 'pensando' | 'feliz' | 'triste'
+  emotion: 'feliz',
 };
 
 // ---------- RENDER ROOT ----------
@@ -34,8 +40,10 @@ function render() {
   }
   app.innerHTML = chatView();
   bindChat();
-  // Asegurar autoscroll al abrir chat
-  queueMicrotask(scrollMessagesBottom);
+  queueMicrotask(() => {
+    scrollMessagesBottom();
+    updateEmotionAvatar(); // sincroniza avatar tras el render
+  });
 }
 
 // ---------- AUTH VIEWS ----------
@@ -45,7 +53,7 @@ function authView() {
     <div class="auth-grid card-outer">
       <div class="brand-pane">
         <header class="brand">
-          <div class="logo-circle" aria-hidden="true">SKAI</div>
+          <div class="logo-circle" aria-hidden="true"><img src="/favicon.svg" alt="Ilustración SKIA" /></div>
           <h1 class="site-title">SKAI</h1>
           <p class="tagline">Acompañamiento emocional con IA</p>
         </header>
@@ -55,9 +63,9 @@ function authView() {
         </figure>
 
         <section class="brand-copy">
-          <h3>¿Qué es SKIA?</h3>
+          <h3>¿Qué es SKAI?</h3>
           <p>
-            🌿 <strong>SKIA</strong> es un asistente de apoyo emocional para acompañarte
+            🌿 <strong>SKAI</strong> es un asistente de apoyo emocional para acompañarte
             en procesos de autoconocimiento y bienestar. Conversa con respeto y calidez.
           </p>
         </section>
@@ -102,28 +110,37 @@ function authView() {
   </section>`;
 }
 
+// ---------- CHAT VIEW (avatar a la DERECHA) ----------
 function chatView() {
-  // Generar lista completa de sesiones
-  const allSessionsHtml = state.sessions
-    .map((s) => {
-      const active = s.sessionid === state.currentSessionId ? 'is-active' : '';
-      const totalMessages = s.totalMessages || 0; // Assuming `totalMessages` is part of the session object
-      return `<li class="session ${active}" data-id="${s.sessionid}" role="button" tabindex="0" aria-label="Abrir chat ${s.sessionid}">
-        <span>Chat activos </span>
+  const allSessionsHtml = state.sessions.map((s, idx) => {
+    const active = s.sessionid === state.currentSessionId ? 'is-active' : '';
+    const seq = s.seq ?? (idx + 1);
+    const title = s.title ? escapeHtml(s.title) : `Chat ${seq}`;
+    return `
+      <li class="session ${active}" data-id="${s.sessionid}" role="button" tabindex="0" aria-label="Abrir ${title}">
+        <div class="session-row">
+          <div class="session-title">${title}</div>
+        </div>
       </li>`;
-    })
-    .join('');
+  }).join('');
 
   const msgsHtml = state.messages.length
     ? state.messages.map((m) => messageBubble(m)).join('')
     : `<div class="empty muted">No hay mensajes aún. Escribe para comenzar ✍️</div>`;
 
+  // Mapa de emociones (usa tus imágenes públicas)
+  const emotionMap = { pensando: '/pensando.png', feliz: '/feliz.png', triste: '/triste.png' };
+  const labelMap   = { pensando: 'Pensando…',      feliz: 'Feliz',       triste: 'Triste' };
+  const avatarSrc = emotionMap[state.emotion] || '/png.png';
+  const avatarAlt = labelMap[state.emotion] || 'Feliz';
+
   return `
   <section class="chat-shell fade-in">
+    <!-- Izquierda: sidebar -->
     <aside class="sidebar card-inner" aria-label="Lista de chats">
       <div class="sidebar-head">
         <button id="newSession" class="btn btn--primary full" title="Nuevo chat">Nuevo chat</button>
-        <p class="small muted">Total de chats en tu cuenta: ${state.sessions.length}</p>
+        <p class="small muted">Tus chats: ${state.sessions.length}</p>
       </div>
       <ul class="sessions" id="sessionList">${allSessionsHtml}</ul>
       <div class="sidebar-foot">
@@ -131,18 +148,28 @@ function chatView() {
       </div>
     </aside>
 
+    <!-- Derecha: panel de chat, con cuerpo a dos columnas (mensajes | avatar) -->
     <main class="chat card-inner" aria-live="polite" aria-busy="${state.loading}">
       <header class="chat-head">
-        <h2 class="chat-title">SKIA</h2>
+        <h2 class="chat-title">SKAI</h2>
         <div class="status-row">
           ${state.loading ? '<span class="dot dot--pulse" aria-label="Cargando"></span><span class="small">Cargando…</span>' : ''}
           ${state.typing ? '<span class="dot dot--typing" aria-label="Escribiendo"></span><span class="small">El bot está escribiendo…</span>' : ''}
         </div>
       </header>
 
-      <section class="messages" id="messages" role="log">
-        ${msgsHtml}
-      </section>
+      <div class="chat-body">
+        <!-- Mensajes (columna 1) -->
+        <section class="messages" id="messages" role="log">
+          ${msgsHtml}
+        </section>
+
+        <!-- Avatar emocional (columna 2, a la DERECHA) -->
+        <aside class="emotion-pane" aria-label="Estado emocional del bot">
+          <img id="emotionAvatar" src="${avatarSrc}" alt="${avatarAlt}" />
+          <div id="emotionLabel" class="emotion-label">${avatarAlt}</div>
+        </aside>
+      </div>
 
       <footer class="composer">
         <div class="composer-row">
@@ -156,7 +183,6 @@ function chatView() {
     </main>
   </section>`;
 }
-
 
 function messageBubble(m) {
   const role = m.author === 'user' ? 'user' : 'bot';
@@ -214,7 +240,14 @@ function bindAuth() {
       const data = await login(fd.get('email'), fd.get('password'));
       state.token = data.token;
       state.user = data.user;
+
+      // Persistencia con storage.js
+      persistToken(state.token);
+      persistUser(state.user);
+
+      // Token para API
       setAuthToken(state.token);
+
       await loadSessions();
       render();
     } catch (err) {
@@ -227,6 +260,8 @@ function bindAuth() {
 
 function bindChat() {
   document.querySelector('#logout')?.addEventListener('click', () => {
+    // Limpia token, user y sesión del storage centralizado
+    clearAllPersisted();
     Object.assign(state, { token: null, user: null, sessions: [], currentSessionId: null, messages: [] });
     render();
   });
@@ -251,7 +286,8 @@ function bindChat() {
     }
   });
 
-  // Mejor autoscroll en montado
+  // Primera sincronización del avatar
+  updateEmotionAvatar();
   scrollMessagesBottom();
 }
 
@@ -259,9 +295,22 @@ function bindChat() {
 async function loadSessions() {
   state.loading = true; renderPartialStatus();
   try {
-    state.sessions = await listSessions();
+    const raw = await listSessions();
+    const norm = (raw || []).map((s) => ({
+      sessionid: Number(s.sessionid ?? s.id ?? s.sessionId),
+      createdAt: new Date(s.createdAt ?? s.created_at ?? s.created_at_ts ?? Date.now()),
+      updatedAt: s.updatedAt ? new Date(s.updatedAt) : (s.updated_at ? new Date(s.updated_at) : null),
+      totalMessages: Number(s.totalMessages ?? s.total_messages ?? 0),
+      title: s.title || null,
+    })).sort((a, b) => a.createdAt - b.createdAt)
+      .map((s, idx) => ({ ...s, seq: idx + 1 }));
+
+    state.sessions = norm;
+
     if (!state.currentSessionId && state.sessions.length) {
-      state.currentSessionId = state.sessions[0].sessionid;
+      state.currentSessionId = state.sessions.at(-1).sessionid;
+      // persiste la sesión activa
+      setCurrentSessionId(state.currentSessionId);
       state.messages = await getMessages(state.currentSessionId);
     }
   } finally {
@@ -273,8 +322,11 @@ async function startSession() {
   state.loading = true; renderPartialStatus();
   try {
     const s = await createSession();
-    state.currentSessionId = s.sessionid;
+    state.currentSessionId = Number(s.sessionid ?? s.id ?? s.sessionId);
     state.messages = [];
+    // persiste la sesión recién creada
+    setCurrentSessionId(state.currentSessionId);
+
     await loadSessions();
     render();
   } catch (err) {
@@ -288,6 +340,9 @@ async function openSession(id) {
   state.loading = true; renderPartialStatus();
   try {
     state.currentSessionId = Number(id);
+    // persiste la sesión seleccionada
+    setCurrentSessionId(state.currentSessionId);
+
     state.messages = await getMessages(id);
     render();
   } catch (err) {
@@ -313,22 +368,30 @@ async function sendCurrentMessage() {
   const optimistic = { messageid: 'temp' + Date.now(), author: 'user', content: text };
   state.messages.push(optimistic);
   render();
-  scrollMessagesBottom();
+  scrollMessagesBottom(true);
 
   state.sending = true;
   state.typing = true;
+  state.emotion = 'pensando';
+  updateEmotionAvatar();
   renderPartialStatus();
 
   try {
     const resp = await sendMessage(state.currentSessionId, text);
-    // Reemplazo simple: quitamos el optimista y agregamos respuesta real
     state.messages = state.messages.filter((m) => m !== optimistic).concat([resp.user, resp.bot]);
+
+    // Respuesta OK → feliz
+    state.emotion = 'feliz';
     render();
-    scrollMessagesBottom();
+    scrollMessagesBottom(true);
+    updateEmotionAvatar();
   } catch (err) {
+    // Error → triste
+    state.emotion = 'triste';
     alert('Error enviando mensaje: ' + (err.response?.data?.error || err.message));
-    // En caso de error devolvemos el texto al textarea
     textarea.value = text;
+    updateEmotionAvatar();
+    render();
   } finally {
     state.sending = false;
     state.typing = false;
@@ -337,8 +400,20 @@ async function sendCurrentMessage() {
 }
 
 // ---------- HELPERS ----------
+function updateEmotionAvatar() {
+  const img = document.getElementById('emotionAvatar');
+  const label = document.getElementById('emotionLabel');
+  if (!img) return;
+  const map = { pensando: '/pensando.png', feliz: '/feliz.png', triste: '/triste.png' };
+  const labels = { pensando: 'Pensando…', feliz: 'Feliz', triste: 'Triste' };
+  const src = map[state.emotion] || map.feliz;
+  const alt = labels[state.emotion] || labels.feliz;
+  if (img.getAttribute('src') !== src) img.setAttribute('src', src);
+  img.setAttribute('alt', alt);
+  if (label) label.textContent = alt;
+}
+
 function renderPartialStatus() {
-  // Actualiza badges de estado sin re-render completo (si es posible)
   const main = document.querySelector('.chat');
   if (main) main.setAttribute('aria-busy', String(state.loading));
   const head = document.querySelector('.status-row');
@@ -361,15 +436,38 @@ function setStatus(selector, text) {
   if (el) el.textContent = text || '';
 }
 
-function scrollMessagesBottom() {
+function scrollMessagesBottom(force = false) {
   const box = document.querySelector('#messages');
   if (!box) return;
-  box.scrollTop = box.scrollHeight;
+  const nearBottom = (box.scrollHeight - box.scrollTop - box.clientHeight) < 40;
+  if (force || nearBottom) box.scrollTop = box.scrollHeight;
 }
 
 function escapeHtml(str) {
   return String(str).replace(/[&<>'"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[c]));
 }
 
-// Init
-render();
+// ---------- INIT ----------
+(async function init() {
+  // Lee estado persistido desde storage.js
+  const token = getToken();
+  const user = getUser();
+  const savedSession = getCurrentSessionId();
+
+  if (token && user) {
+    state.token = token;
+    state.user = user;
+    setAuthToken(token);
+    if (savedSession) state.currentSessionId = savedSession;
+
+    try {
+      await loadSessions();
+    } catch (e) {
+      // Si algo falla, limpia todo lo persistido
+      clearAllPersisted();
+      Object.assign(state, { token: null, user: null, sessions: [], currentSessionId: null, messages: [] });
+    }
+  }
+
+  render();
+})();
