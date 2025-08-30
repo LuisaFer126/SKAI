@@ -11,7 +11,7 @@ if (!apiKey) {
 const genAI = new GoogleGenerativeAI(apiKey || '');
 const model = () => genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
-// Heurística de respaldo por si el JSON falla
+// Heurística de respaldo por si el modelo no devuelve JSON válido
 function deriveEmotionFromText(text) {
   if (!text) return 'feliz';
   const t = String(text).toLowerCase()
@@ -40,6 +40,7 @@ function deriveEmotionFromText(text) {
   return 'feliz';
 }
 
+// Genera respuesta de Gemini. Devuelve { text, emotion }
 export async function generateBotReply(messages) {
   // messages: [{author, content}]
   const history = messages.map(m => ({
@@ -47,7 +48,7 @@ export async function generateBotReply(messages) {
     parts: [{ text: m.content }]
   }));
 
-  // Instruimos al modelo a devolver SOLO JSON válido
+  // Pedimos al modelo devolver SOLO JSON válido
   const systemGuidance = `
 Actúa como un acompañante virtual de apoyo emocional y regulación de emociones.
 
@@ -100,10 +101,9 @@ Reglas para "emotion":
     emotion = deriveEmotionFromText(text);
   }
 
-  // Devuelve listo para el frontend/API
+  // Devuelve listo para el frontend/API: { text, emotion }
   return { text, emotion };
 }
-
 
 
 

@@ -2,7 +2,7 @@ import './style.css';
 import { register, login, listSessions, createSession, getMessages, sendMessage } from './api.js';
 import { setAuthToken } from './api.js';
 
-// ⬇️ NUEVO: persistencia centralizada en src/storage.js
+// Persistencia centralizada en src/storage.js
 import {
   getToken, setToken as persistToken,
   getUser, setUser as persistUser,
@@ -11,18 +11,63 @@ import {
 } from './storage.js';
 
 /**
- * SKIA Frontend (refactor) + Avatar emocional + Storage externo
+ * SKAI Frontend con avatar emocional y almacenamiento externo
  */
 
 const app = document.querySelector('#app');
 
-/* ====== NUEVO: activos del avatar emocional ======
-   Cambia AQUÍ las rutas de tus GIF/PNG del avatar según la emoción. */
+// ===== Tema claro/oscuro =====
+const THEME_KEY = 'skai:theme';
+
+function getStoredTheme() {
+  try { return localStorage.getItem(THEME_KEY); } catch { return null; }
+}
+
+function storeTheme(theme) {
+  try { localStorage.setItem(THEME_KEY, theme); } catch {}
+}
+
+function systemPrefersLight() {
+  return window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches;
+}
+
+function applyTheme(theme) {
+  const light = theme === 'light';
+  document.documentElement.classList.toggle('light', light);
+  const btn = document.getElementById('themeToggle');
+  if (btn) {
+    btn.textContent = light ? '🌙 Oscuro' : '☀️ Claro';
+    btn.setAttribute('aria-label', light ? 'Cambiar a modo oscuro' : 'Cambiar a modo claro');
+    btn.setAttribute('aria-pressed', String(light));
+  }
+}
+
+function ensureThemeToggle() {
+  let btn = document.getElementById('themeToggle');
+  if (!btn) {
+    btn = document.createElement('button');
+    btn.id = 'themeToggle';
+    btn.className = 'theme-toggle';
+    btn.type = 'button';
+    document.body.appendChild(btn);
+    btn.addEventListener('click', () => {
+      const current = document.documentElement.classList.contains('light') ? 'light' : 'dark';
+      const next = current === 'light' ? 'dark' : 'light';
+      storeTheme(next);
+      applyTheme(next);
+    });
+  }
+  const saved = getStoredTheme();
+  const initial = saved || (systemPrefersLight() ? 'light' : 'dark');
+  applyTheme(initial);
+}
+
+/* Activos del avatar emocional (GIF/PNG por emoción) */
 const EMOTION_ASSETS = {
-  predeterminado: { src: '/reposo.gif', alt: 'Reposo…' }, // Gif predeterminado
-  pensando: { src: '/pensando.gif', alt: 'Pensando…' },
-  feliz:    { src: '/feliz.gif',    alt: 'Feliz'    },
-  triste:   { src: '/triste.gif',   alt: 'Triste'   },
+  predeterminado: { src: '/reposo.gif', alt: 'Reposo…  😴' }, // Gif predeterminado
+  pensando: { src: '/pensando.gif', alt: 'Pensando… 😯'  },
+  feliz:    { src: '/feliz.gif',    alt: 'Feliz ☺️'    },
+  triste:   { src: '/triste.gif',   alt: 'Triste 😫'   },
 };
 
 // Fallback sencillo (por si el backend no envía emoción)
@@ -118,6 +163,34 @@ function authView() {
             <label class="label">Contraseña
               <input class="input" name="password" placeholder="••••••••" required type="password" autocomplete="new-password" />
             </label>
+
+            <div class="adv-wrap">
+              <div class="adv-head" style="display:flex;justify-content:space-between;align-items:center;gap:.5rem">
+                <div class="label" id="advTitle">Opciones avanzadas (opcional)</div>
+                <button type="button" id="toggleAdv" class="btn" aria-expanded="false" aria-controls="advFields">Mostrar</button>
+              </div>
+              <div id="advFields" class="form is-hidden" style="margin-top:.6rem;gap:.6rem">
+                <label class="label">Edad
+                  <input class="input" name="age" type="number" min="0" placeholder="Ej: 29" />
+                </label>
+                <label class="label">Ocupación
+                  <input class="input" name="occupation" placeholder="Ej: Estudiante / Desarrollador" />
+                </label>
+                <label class="label">Objetivos personales
+                  <input class="input" name="goals" placeholder="Ej: manejar ansiedad, dormir mejor" />
+                </label>
+                <label class="label">Límites / preferencias de conversación
+                  <input class="input" name="boundaries" placeholder="Ej: evitar temas médicos" />
+                </label>
+                <label class="label">Notas de sueño
+                  <input class="input" name="sleepNotes" placeholder="Ej: me cuesta conciliar el sueño" />
+                </label>
+                <label class="label">Factores de estrés
+                  <input class="input" name="stressors" placeholder="Ej: trabajo, exámenes" />
+                </label>
+              </div>
+            </div>
+
             <button class="btn btn--primary" type="submit" aria-busy="false">Crear cuenta</button>
             <small id="regMsg" class="muted" role="status" aria-live="polite"></small>
           </form>
@@ -184,6 +257,7 @@ function chatView() {
         <aside class="emotion-pane" aria-label="Estado emocional del bot">
           <img id="emotionAvatar" src="${avatarSrc}" alt="${avatarAlt}" />
           <div id="emotionLabel" class="emotion-label">${avatarAlt}</div>
+          ${state.loading ? '<div class="avatar-loading small muted" aria-live="polite">Cargando…</div>' : ''}
         </aside>
       </div>
 
@@ -204,7 +278,7 @@ function messageBubble(m) {
   const role = m.author === 'user' ? 'user' : 'bot';
   const label = m.author === 'user' ? 'Tú' : 'Bot';
 
-  // Solo mostramos el texto del mensaje (m.content) sin procesar la emoción
+  // Renderiza solo el texto del mensaje (m.content)
   return `<article class="message ${role}">
     <div class="avatar" aria-hidden="true">${role === 'user' ? 'T' : 'S'}</div>
     <div class="bubble"><strong class="who">${label}:</strong> ${escapeHtml(m.content)}</div>
@@ -232,12 +306,32 @@ function bindAuth() {
   tabRegister?.addEventListener('click', () => switchTabs('register'));
 
   const regForm = document.querySelector('#registerForm');
+  const toggleAdvBtn = document.getElementById('toggleAdv');
+  const advFields = document.getElementById('advFields');
+
+  toggleAdvBtn?.addEventListener('click', () => {
+    if (!advFields) return;
+    const willShow = advFields.classList.contains('is-hidden');
+    advFields.classList.toggle('is-hidden');
+    toggleAdvBtn.setAttribute('aria-expanded', String(willShow));
+    toggleAdvBtn.textContent = willShow ? 'Ocultar' : 'Mostrar';
+  });
+
   regForm?.addEventListener('submit', async (e) => {
     e.preventDefault();
     const fd = new FormData(e.target);
     setButtonBusy(e.submitter, true);
     try {
-      await register(fd.get('email'), fd.get('password'), fd.get('name'));
+      // Construye objeto de perfil con los campos avanzados si hay datos
+      const profile = {};
+      const advFields = ['age','occupation','goals','boundaries','sleepNotes','stressors'];
+      advFields.forEach((k) => {
+        const v = fd.get(k);
+        if (v != null && String(v).trim() !== '') profile[k] = k === 'age' ? Number(v) : String(v).trim();
+      });
+      const hasProfile = Object.keys(profile).length > 0;
+
+      await register(fd.get('email'), fd.get('password'), fd.get('name'), hasProfile ? profile : null);
       const regMsgEl = document.querySelector('#regMsg');
       if (regMsgEl) regMsgEl.textContent = '✅ Registrado. Ahora inicia sesión.';
       e.target.reset();
@@ -326,10 +420,14 @@ async function loadSessions() {
     state.sessions = norm;
 
     if (!state.currentSessionId && state.sessions.length) {
+      // Al seleccionar la primera sesión, muestra avatar neutral mientras carga
+      state.emotion = 'predeterminado';
+      updateEmotionAvatar();
       state.currentSessionId = state.sessions.at(-1).sessionid;
       // persiste la sesión activa
       setCurrentSessionId(state.currentSessionId);
       state.messages = await getMessages(state.currentSessionId);
+      state.emotion = emotionFromHistory(state.messages);
     }
   } finally {
     state.loading = false; renderPartialStatus();
@@ -339,15 +437,22 @@ async function loadSessions() {
 async function startSession() {
   state.loading = true; renderPartialStatus();
   try {
+    // Al crear una nueva sesión, resetea el avatar a neutral
+    state.emotion = 'predeterminado';
+    updateEmotionAvatar();
     const s = await createSession();
     state.currentSessionId = Number(s.sessionid ?? s.id ?? s.sessionId);
+    // Cargar inmediatamente los mensajes para mostrar el saludo del bot
     state.messages = [];
     // persiste la sesión recién creada
     setCurrentSessionId(state.currentSessionId);
-
+    // Refresca lista de sesiones y trae historial de la nueva
     await loadSessions();
+    state.messages = await getMessages(state.currentSessionId);
+    state.emotion = emotionFromHistory(state.messages);
     render();
   } catch (err) {
+    blinkEmotion('triste');
     alert('No se pudo crear la sesión: ' + (err.response?.data?.error || err.message));
   } finally {
     state.loading = false; renderPartialStatus();
@@ -360,10 +465,14 @@ async function openSession(id) {
     state.currentSessionId = Number(id);
     // persiste la sesión seleccionada
     setCurrentSessionId(state.currentSessionId);
-
+    // Avatar neutral mientras se carga el historial de la sesión
+    state.emotion = 'predeterminado';
+    updateEmotionAvatar();
     state.messages = await getMessages(id);
+    state.emotion = emotionFromHistory(state.messages);
     render();
   } catch (err) {
+    blinkEmotion('triste');
     alert('No se pudo abrir la sesión: ' + (err.response?.data?.error || err.message));
   } finally {
     state.loading = false; renderPartialStatus();
@@ -411,11 +520,10 @@ async function sendCurrentMessage() {
     scrollMessagesBottom(true);
     updateEmotionAvatar();
   } catch (err) {
-    // Error → triste
-    state.emotion = 'triste';
+    // Error → triste temporal (parpadeo)
+    blinkEmotion('triste');
     alert('Error enviando mensaje: ' + (err.response?.data?.error || err.message));
     textarea.value = text;
-    updateEmotionAvatar();
     render();
   } finally {
     state.sending = false;
@@ -439,6 +547,20 @@ function updateEmotionAvatar() {
   }
 }
 
+// Parpadeo de emoción temporal y retorno al estado previo
+function blinkEmotion(temp, duration = 1200) {
+  const prev = state.emotion;
+  state.emotion = temp;
+  updateEmotionAvatar();
+  window.setTimeout(() => {
+    // Solo restaura si nadie cambió el estado mientras tanto
+    if (state.emotion === temp) {
+      state.emotion = prev;
+      updateEmotionAvatar();
+    }
+  }, duration);
+}
+
 function renderPartialStatus() {
   const main = document.querySelector('.chat');
   if (main) main.setAttribute('aria-busy', String(state.loading));
@@ -449,6 +571,20 @@ function renderPartialStatus() {
       ${state.typing ? '<span class="dot dot--typing" aria-label="Escribiendo"></span><span class="small">El bot está escribiendo…</span>' : ''}
     `;
   }
+}
+
+// Deriva la emoción a partir del último mensaje del bot
+function emotionFromHistory(messages) {
+  if (!Array.isArray(messages) || messages.length === 0) return 'predeterminado';
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i];
+    if ((m.author || '').toLowerCase() === 'bot') {
+      const raw = String(m.emotionType ?? m.emotiontype ?? m.emotion ?? '').toLowerCase();
+      if (raw === 'feliz' || raw === 'triste' || raw === 'pensando') return raw;
+      return fallbackEmotion(m.content || '');
+    }
+  }
+  return 'predeterminado';
 }
 
 function setButtonBusy(btn, busy) {
@@ -475,6 +611,8 @@ function escapeHtml(str) {
 
 // ---------- INIT ----------
 (async function init() {
+  // Asegura el botón de tema persistente y aplica preferencia
+  ensureThemeToggle();
   // Lee estado persistido desde storage.js
   const token = getToken();
   const user = getUser();

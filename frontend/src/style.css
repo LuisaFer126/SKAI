@@ -1,8 +1,8 @@
 /* =============================
-   SKIA UI (Refactor de estilos)
-   - Paleta mejorada y contraste AA
+   SKAI UI Styles
+   - Paleta con contraste AA
    - Componentes consistentes y responsive
-   - Estados :focus visibles y accesibles
+   - Estados :focus accesibles
    ============================= */
 
 /* Fuentes */
@@ -32,6 +32,23 @@
   --shadow-soft: 0 10px 24px rgba(0,0,0,.35);
 }
 
+/* Base sin frameworks utilitarios */
+
+/* Light theme overrides (only dark surfaces/text change) */
+:root.light{
+  --bg: #f6f8ff;     /* was #212121 */
+  --surface: #ffffff; /* was #0f1424 */
+  --card: #ffffff;    /* was #131a2e */
+  --elev: #f2f5ff;    /* was #17213b */
+  --border: #d9e0f3;  /* was #243154 */
+  --text: #1d2230;    /* was #eaf0ff */
+  --pane: #f6f8ff;    /* was #eaf0ff */
+
+  /* keep accents and muted identical to dark theme */
+}
+
+
+
 /* Preferencias de movimiento */
 @media (prefers-reduced-motion: reduce){
   * { animation: none !important; transition: none !important; }
@@ -48,6 +65,8 @@ body{
     linear-gradient(180deg, rgb(255, 255, 255, 0), rgba(48, 47, 47, 0)),
     var(--bg);
 }
+
+/* Overrides de tema se aplican con :root.light */
 
 /* Utilidades */
 .shell{max-width:1100px;margin:0 auto;padding:2rem}
@@ -118,6 +137,16 @@ body{
   box-shadow: 0 10px 30px rgba(var(--accent-rgb),.14);
 }
 
+/* Registro avanzado */
+.fieldset{border:1px solid var(--border);padding:1rem;border-radius:12px}
+.fieldset legend{padding:0 .4rem;color:var(--muted)}
+.inline{display:flex;align-items:center;gap:.5rem}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:.75rem}
+.icon-btn{background:transparent;border:none;cursor:pointer;padding:.2rem .3rem;font-size:1rem}
+.session-row{display:flex;align-items:center;justify-content:space-between;gap:.5rem}
+.session-title{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.session-rename{width:100%}
+
 /* Formularios */
 .form{display:flex;flex-direction:column;gap:.6rem}
 .label{display:flex;flex-direction:column;gap:.35rem;font-weight:600}
@@ -136,13 +165,13 @@ body{
   padding:.9rem 2rem;border-radius:12px;border:0px solid transparent;
   cursor:pointer;font-weight:800;color:var(--text);
   background: linear-gradient(180deg, rgba(255,255,255,.02), rgba(255,255,255,.03));
-  transition: transform .12s ease, filter .12s ease;
+  transition: transform .08s ease-out, filter .08s ease-out;
 }
 .btn--primary{
   background: var(--grad-primary);
   box-shadow: 0 12px 34px rgba(0,0,0,.18);
 }
-.btn:hover{transform:translateY(-1px);filter:brightness(1.03)}
+.btn:hover{transform:translateY(-0.5px);filter:brightness(1.02)}
 .btn:active{transform:translateY(0)}
 .btn[aria-busy="true"]{opacity:.7;pointer-events:none}
 
@@ -227,7 +256,7 @@ body{
   gap: .5rem;
   border-radius: 12px;
   padding: .8rem;
-    background-color: #fcfcfc;
+  background: var(--pane);
 }
 .emotion-pane img{
   width: 100%;
@@ -298,11 +327,11 @@ body{
 .sessions::-webkit-scrollbar-track{background:transparent}
 
 /* Animaciones */
-.fade-in{animation:fadeIn .45s ease both}
-@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.fade-in{animation:fadeIn .2s ease-out both}
+@keyframes fadeIn{from{opacity:.6}to{opacity:1}}
 
 /* Responsive: apilar en móvil */
-@media (max-width: 800px){
+@media (max-width: 900px){
   .chat-body{
     grid-template-columns: 1fr;
   }
@@ -339,7 +368,7 @@ body{
 .chat-body.merged .emotion-pane{ padding-left: .8rem; }
 
 /* En móvil, vuelve a apilar y recuperar bordes “completos” */
-@media (max-width: 800px){
+@media (max-width: 900px){
   .chat-body.merged{
     gap: 1rem;
   }
@@ -355,3 +384,18 @@ body{
     box-shadow: none;
   }
 }
+/* Fin de layout principal */
+
+/* Botón de cambio de tema */
+.theme-toggle{
+  position: fixed; top: .75rem; right: .75rem; z-index: 1000;
+  background: var(--card); color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 999px; padding: .35rem .6rem;
+  font-weight: 700; font-size: .95rem; cursor: pointer;
+}
+
+.theme-toggle:hover{ filter: brightness(1.05); }
+.theme-toggle:active{ transform: translateY(1px); }
+
+/* Fin estilos tema */

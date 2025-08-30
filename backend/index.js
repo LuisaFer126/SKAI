@@ -13,11 +13,11 @@ app.use(express.json());
 
 app.get('/', (_req, res) => res.json({ status: 'ok' }));
 
-// Auth
+// Auth endpoints
 app.post('/api/register', async (req, res) => {
   try {
-    const { email, password, name } = req.body;
-    const user = await register(email, password, name);
+    const { email, password, name, profile } = req.body;
+    const user = await register(email, password, name, profile);
     res.json(user);
   } catch (e) { res.status(400).json({ error: e.message }); }
 });
@@ -30,7 +30,7 @@ app.post('/api/login', async (req, res) => {
   } catch (e) { res.status(400).json({ error: e.message }); }
 });
 
-// Create or resume chat session
+// Chat sessions: create or resume
 app.post('/api/chat/session', authMiddleware, async (req, res) => {
   const { sessionId } = req.body;
   if (sessionId) {
@@ -43,7 +43,7 @@ app.post('/api/chat/session', authMiddleware, async (req, res) => {
   res.json(created.rows[0]);
 });
 
-// Send user message and get bot reply
+// Messaging: persist user message, call Gemini, persist bot reply (with emotion)
 app.post('/api/chat/message', authMiddleware, async (req, res) => {
   try {
     let { sessionId, content } = req.body;
@@ -61,24 +61,27 @@ app.post('/api/chat/message', authMiddleware, async (req, res) => {
 
     const previous = await query('SELECT author, content FROM "Message" WHERE sessionId=$1 ORDER BY createdAt ASC LIMIT 15', [sessionId]);
     let botText = '';
+    let botEmotion = null;
     try {
-      botText = await generateBotReply(previous.rows.concat([{ author: 'user', content } ]));
+      const r = await generateBotReply(previous.rows.concat([{ author: 'user', content } ]));
+      botText = typeof r === 'string' ? r : (r?.text || '');
+      botEmotion = typeof r === 'object' ? (r?.emotion || null) : null;
     } catch (modelErr) {
       console.error('Gemini error', modelErr);
       botText = 'Lo siento, ahora mismo no puedo generar respuesta.';
     }
-    const botMsg = await query('INSERT INTO "Message" (sessionId, author, content) VALUES ($1,$2,$3) RETURNING *', [sessionId, 'bot', botText]);
+    const botMsg = await query('INSERT INTO "Message" (sessionId, author, content, emotionType) VALUES ($1,$2,$3,$4) RETURNING *', [sessionId, 'bot', botText, botEmotion]);
     res.json({ sessionId, user: userMsg.rows[0], bot: botMsg.rows[0] });
   } catch (e) { console.error('chat/message error', e); res.status(500).json({ error: e.message }); }
 });
 
-// List sessions
+// Sessions list for current user
 app.get('/api/chat/sessions', authMiddleware, async (req, res) => {
   const sessions = await query('SELECT sessionId, startDate, endDate FROM "ChatSession" WHERE userId=$1 ORDER BY startDate DESC', [req.user.userId]);
   res.json(sessions.rows);
 });
 
-// Get messages of a session
+// Messages of a session (user-owned)
 app.get('/api/chat/session/:id/messages', authMiddleware, async (req, res) => {
   const { id } = req.params;
   const check = await query('SELECT * FROM "ChatSession" WHERE sessionId=$1 AND userId=$2', [id, req.user.userId]);
@@ -87,7 +90,7 @@ app.get('/api/chat/session/:id/messages', authMiddleware, async (req, res) => {
   res.json(messages.rows);
 });
 
-// Simple user history update (placeholder summarization)
+// UserHistory demo: store freeform summary text
 app.post('/api/user/history/summarize', authMiddleware, async (req, res) => {
   const { text } = req.body;
   const existing = await query('SELECT * FROM "UserHistory" WHERE userId=$1', [req.user.userId]);
@@ -98,6 +101,141 @@ app.post('/api/user/history/summarize', authMiddleware, async (req, res) => {
     const ins = await query('INSERT INTO "UserHistory" (userId, summary) VALUES ($1,$2) RETURNING *', [req.user.userId, text]);
     return res.json(ins.rows[0]);
   }
+});
+
+// UserProfile: get or upsert structured/advanced profile
+app.get('/api/user/profile', authMiddleware, async (req, res) => {
+  const r = await query('SELECT * FROM "UserProfile" WHERE userId=$1', [req.user.userId]);
+  if (!r.rowCount) return res.json(null);
+  res.json(r.rows[0]);
+});
+
+app.put('/api/user/profile', authMiddleware, async (req, res) => {
+  const { age = null, occupation = null, sleepNotes = null, stressors = null, goals = null, boundaries = null, data = {} } = req.body || {};
+  const up = await query(
+    `INSERT INTO "UserProfile" (userId, age, occupation, sleepNotes, stressors, goals, boundaries, data, createdAt, updatedAt)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NOW(),NOW())
+     ON CONFLICT (userId)
+     DO UPDATE SET age=EXCLUDED.age, occupation=EXCLUDED.occupation, sleepNotes=EXCLUDED.sleepNotes, stressors=EXCLUDED.stressors,
+                   goals=EXCLUDED.goals, boundaries=EXCLUDED.boundaries, data=EXCLUDED.data, updatedAt=NOW()
+     RETURNING *`,
+    [req.user.userId, age, occupation, sleepNotes, stressors, goals, boundaries, data]
+  );
+  res.json(up.rows[0]);
+});
+
+// Heuristic suggestions derived from DB usage (length, exclamations, hours)
+app.get('/api/user/profile/suggestions', authMiddleware, async (req, res) => {
+  const uid = req.user.userId;
+  // Avg length of user messages
+  const avgLen = await query(
+    `SELECT COALESCE(AVG(LENGTH(content)),0)::float AS avg_len
+     FROM "Message" m JOIN "ChatSession" s ON s.sessionid=m.sessionid
+     WHERE s.userid=$1 AND m.author='user'`, [uid]
+  );
+  // Avg exclamation count per message (approx tone)
+  const exAvg = await query(
+    `SELECT COALESCE(AVG((LENGTH(content) - LENGTH(REPLACE(content,'!','')))),0)::float AS exclam_avg
+     FROM "Message" m JOIN "ChatSession" s ON s.sessionid=m.sessionid
+     WHERE s.userid=$1 AND m.author='user'`, [uid]
+  );
+  // Active hours histogram (top 3)
+  const hours = await query(
+    `SELECT CAST(date_part('hour', m.createdat) AS int) AS h, COUNT(*)::int c
+     FROM "Message" m JOIN "ChatSession" s ON s.sessionid=m.sessionid
+     WHERE s.userid=$1 AND m.author='user'
+     GROUP BY 1 ORDER BY 2 DESC LIMIT 3`, [uid]
+  );
+  // Min-hour (quiet start)
+  const hourCounts = await query(
+    `SELECT CAST(h AS int) AS h, COALESCE(cnt,0)::int c FROM (
+       SELECT generate_series(0,23) AS h) g
+       LEFT JOIN (
+         SELECT date_part('hour', m.createdat) AS h, COUNT(*) AS cnt
+         FROM "Message" m JOIN "ChatSession" s ON s.sessionid=m.sessionid
+         WHERE s.userid=$1 AND m.author='user'
+         GROUP BY 1
+       ) x USING(h)
+     ORDER BY c ASC, h ASC LIMIT 1`, [uid]
+  );
+
+  const avg_len = Number(avgLen.rows[0]?.avg_len || 0);
+  const exclam_avg = Number(exAvg.rows[0]?.exclam_avg || 0);
+  const topHours = hours.rows.map(r => r.h);
+  const quietStart = hourCounts.rowCount ? Number(hourCounts.rows[0].h) : 0;
+
+  let responseLength = 'medium';
+  if (avg_len < 60) responseLength = 'short';
+  else if (avg_len > 180) responseLength = 'long';
+
+  let tone = 'neutral';
+  if (exclam_avg >= 0.6 && avg_len < 160) tone = 'casual';
+  if (exclam_avg < 0.15 && avg_len > 200) tone = 'formal';
+
+  const suggestions = {
+    responseLength, // short|medium|long
+    tone,           // casual|neutral|formal
+    topHours,       // most active hours (0-23)
+    quietHours: { start: quietStart, duration: 6 },
+    typingIndicators: true,
+  };
+
+  res.json({ suggestions, metrics: { avg_len, exclam_avg, topHours, quietStart } });
+});
+
+app.post('/api/user/profile/apply-suggestions', authMiddleware, async (req, res) => {
+  // Recompute suggestions locally (no HTTP call); merge into profile.data
+  const uid = req.user.userId;
+  const avgLen = await query(
+    `SELECT COALESCE(AVG(LENGTH(content)),0)::float AS avg_len
+     FROM "Message" m JOIN "ChatSession" s ON s.sessionid=m.sessionid
+     WHERE s.userid=$1 AND m.author='user'`, [uid]
+  );
+  const exAvg = await query(
+    `SELECT COALESCE(AVG((LENGTH(content) - LENGTH(REPLACE(content,'!','')))),0)::float AS exclam_avg
+     FROM "Message" m JOIN "ChatSession" s ON s.sessionid=m.sessionid
+     WHERE s.userid=$1 AND m.author='user'`, [uid]
+  );
+  const hours = await query(
+    `SELECT CAST(date_part('hour', m.createdat) AS int) AS h, COUNT(*)::int c
+     FROM "Message" m JOIN "ChatSession" s ON s.sessionid=m.sessionid
+     WHERE s.userid=$1 AND m.author='user'
+     GROUP BY 1 ORDER BY 2 DESC LIMIT 3`, [uid]
+  );
+  const hourCounts = await query(
+    `SELECT CAST(h AS int) AS h, COALESCE(cnt,0)::int c FROM (
+       SELECT generate_series(0,23) AS h) g
+       LEFT JOIN (
+         SELECT date_part('hour', m.createdat) AS h, COUNT(*) AS cnt
+         FROM "Message" m JOIN "ChatSession" s ON s.sessionid=m.sessionid
+         WHERE s.userid=$1 AND m.author='user'
+         GROUP BY 1
+       ) x USING(h)
+     ORDER BY c ASC, h ASC LIMIT 1`, [uid]
+  );
+  const avg_len = Number(avgLen.rows[0]?.avg_len || 0);
+  const exclam_avg = Number(exAvg.rows[0]?.exclam_avg || 0);
+  const topHours = hours.rows.map(r => r.h);
+  const quietStart = hourCounts.rowCount ? Number(hourCounts.rows[0].h) : 0;
+  let responseLength = 'medium';
+  if (avg_len < 60) responseLength = 'short';
+  else if (avg_len > 180) responseLength = 'long';
+  let tone = 'neutral';
+  if (exclam_avg >= 0.6 && avg_len < 160) tone = 'casual';
+  if (exclam_avg < 0.15 && avg_len > 200) tone = 'formal';
+  const suggestions = { responseLength, tone, topHours, quietHours: { start: quietStart, duration: 6 }, typingIndicators: true };
+  const current = await query('SELECT data FROM "UserProfile" WHERE userId=$1', [req.user.userId]);
+  const existing = current.rowCount ? (current.rows[0].data || {}) : {};
+  const merged = { ...existing, ...suggestions };
+  const up = await query(
+    `INSERT INTO "UserProfile" (userId, data, createdAt, updatedAt)
+     VALUES ($1,$2,NOW(),NOW())
+     ON CONFLICT (userId)
+     DO UPDATE SET data=EXCLUDED.data, updatedAt=NOW()
+     RETURNING *`,
+    [req.user.userId, merged]
+  );
+  res.json({ profile: up.rows[0], suggestions });
 });
 
 const port = process.env.PORT || 3000;

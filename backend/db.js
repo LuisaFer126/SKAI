@@ -4,17 +4,22 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 const { Pool } = pkg;
-export const pool = new Pool({ 
 
+// Database connection
+// Preferred: use DATABASE_URL (e.g., postgres://user:pass@host:port/db)
+// Fallback: PGHOST, PGUSER, PGPASSWORD, PGDATABASE, PGPORT
+const connection = process.env.DATABASE_URL
+  ? { connectionString: process.env.DATABASE_URL, ssl: process.env.PGSSL === 'false' ? false : { rejectUnauthorized: false } }
+  : {
+      host: process.env.PGHOST || 'localhost',
+      user: process.env.PGUSER || 'postgres',
+      password: process.env.PGPASSWORD || undefined,
+      database: process.env.PGDATABASE || 'postgres',
+      port: Number(process.env.PGPORT || 5432),
+      ssl: process.env.PGSSL === 'true' ? { rejectUnauthorized: false } : false,
+    };
 
-  host: 'aws-1-us-east-2.pooler.supabase.com',
-  user: 'postgres.pmaqxvlphtlcnveqnvcu',
-  password: 'confident-skia', // remplaza con tu contraseña de Supabase
-  database: 'postgres',
-  port: 6543,
-  ssl: { rejectUnauthorized: false } // Supabase requiere SSL
-
- });
+export const pool = new Pool(connection);
 
 export async function query(text, params) {
   const start = Date.now();
