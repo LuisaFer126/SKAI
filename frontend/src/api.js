@@ -1,6 +1,12 @@
 import axios from 'axios';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+// In production (Vercel), prefer same-origin '/api' via rewrites.
+// Otherwise, use VITE_API_URL or fallback to localhost for local dev.
+const isBrowser = typeof window !== 'undefined';
+const isLocalhost = isBrowser && /^(localhost|127\.0\.0\.1)/.test(location.hostname);
+const API_URL =
+  import.meta.env.VITE_API_URL ||
+  (isBrowser && !isLocalhost ? '' : 'http://localhost:3000');
 
 export function setAuthToken(token) {
   axios.defaults.headers.common['Authorization'] = token ? `Bearer ${token}` : '';
