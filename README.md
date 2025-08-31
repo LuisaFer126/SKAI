@@ -58,6 +58,22 @@ VITE_API_URL=http://localhost:3000 npm run dev
 - Backend: deploy on your preferred host (Railway/Render/Fly/Heroku). Set `DATABASE_URL` (or `PG*` vars), `JWT_SECRET`, and `GEMINI_API_KEY`.
 - Supabase SSL: backend forces `ssl: { rejectUnauthorized: false }` to avoid self‑signed chain errors when using the pooler on port 6543.
 
+### Backend DB tuning for serverless (Vercel/containers)
+- Use Supabase “pooler” endpoint on port 6543 (not direct 5432).
+- Set envs to control pg Pool if needed:
+  - `PGPOOL_MAX=3` (default on Vercel) to avoid exhausting DB connections.
+  - `PGPOOL_IDLE_TIMEOUT_MS=10000`, `PGPOOL_CONN_TIMEOUT_MS=5000`.
+- The app uses a single shared Pool and `allowExitOnIdle=true` to reduce cold starts/idle leaks.
+- Example `.env` (backend):
+  ```
+  DATABASE_URL=postgres://postgres.<user>:<password>@aws-<region>.pooler.supabase.com:6543/postgres?sslmode=require
+  JWT_SECRET=replace-me
+  GEMINI_API_KEY=your-gemini-key
+  PGPOOL_MAX=3
+  PGPOOL_IDLE_TIMEOUT_MS=10000
+  PGPOOL_CONN_TIMEOUT_MS=5000
+  ```
+
 Example `vercel.json` rewrite:
 ```
 {

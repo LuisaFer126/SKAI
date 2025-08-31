@@ -36,7 +36,16 @@ if (process.env.DATABASE_URL) {
   };
 }
 
-export const pool = new Pool(connection);
+// Ajustes de pool optimizados para entornos serverless (Vercel, etc.)
+const poolOptions = {
+  ...connection,
+  max: Number(process.env.PGPOOL_MAX || (process.env.VERCEL ? 3 : 10)),
+  idleTimeoutMillis: Number(process.env.PGPOOL_IDLE_TIMEOUT_MS || (process.env.VERCEL ? 10000 : 30000)),
+  connectionTimeoutMillis: Number(process.env.PGPOOL_CONN_TIMEOUT_MS || 5000),
+  allowExitOnIdle: true,
+};
+
+export const pool = new Pool(poolOptions);
 
 export async function query(text, params) {
   const start = Date.now();
