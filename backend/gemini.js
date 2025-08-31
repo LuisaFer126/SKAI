@@ -40,7 +40,7 @@ function deriveEmotionFromText(text) {
   return 'feliz';
 }
 
-// Genera respuesta de Gemini. Devuelve { text, emotion }
+// Genera respuesta de Gemini. Devuelve { text, emotion, crisis }
 export async function generateBotReply(messages) {
   // messages: [{author, content}]
   const history = messages.map(m => ({
@@ -64,12 +64,14 @@ Principios:
 DEVUELVE ESTRICTAMENTE JSON VÁLIDO con esta forma:
 {
   "answer": "texto al usuario (en español, sin markdown)",
-  "emotion": "feliz" | "triste"
+  "emotion": "feliz" | "triste",
+  "crisis": true | false
 }
 
 Reglas para "emotion":
 - Usa "triste" si el contenido central del mensaje es de validación/acompañamiento ante dolor, frustración, pérdida, ansiedad o malestar predominante.
 - Usa "feliz" cuando reconozcas avances, alivio, gratitud o tono mayormente esperanzador/positivo.
+- Marca "crisis": true si detectas ideación o riesgo de suicidio/autolesión, violencia de pareja/familiar, abuso sexual, peligro inmediato o incapacidad de mantenerse a salvo ahora mismo. En duda, deja en false.
 - No devuelvas otros campos ni comentarios fuera del JSON.
 `;
 
@@ -88,12 +90,14 @@ Reglas para "emotion":
   // Intentar parsear JSON
   let text = '';
   let emotion = 'feliz';
+  let crisis = false;
   try {
     const raw = result.response.text(); // debería ser JSON puro
     const parsed = JSON.parse(raw);
     text = String(parsed?.answer || '').trim();
     const e = String(parsed?.emotion || '').toLowerCase();
     emotion = (e === 'feliz' || e === 'triste') ? e : deriveEmotionFromText(text);
+    crisis = Boolean(parsed?.crisis);
   } catch {
     // Fallback si no vino JSON válido
     const fallback = result.response.text() || '';
@@ -101,9 +105,8 @@ Reglas para "emotion":
     emotion = deriveEmotionFromText(text);
   }
 
-  // Devuelve listo para el frontend/API: { text, emotion }
-  return { text, emotion };
+  // Devuelve listo para el frontend/API: { text, emotion, crisis }
+  return { text, emotion, crisis };
 }
-
 
 

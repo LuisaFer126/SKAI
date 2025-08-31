@@ -5,19 +5,36 @@ dotenv.config();
 
 const { Pool } = pkg;
 
-// Database connection
-// Preferred: use DATABASE_URL (e.g., postgres://user:pass@host:port/db)
-// Fallback: PGHOST, PGUSER, PGPASSWORD, PGDATABASE, PGPORT
-const connection = process.env.DATABASE_URL
-  ? { connectionString: process.env.DATABASE_URL, ssl: process.env.PGSSL === 'false' ? false : { rejectUnauthorized: false } }
-  : {
-      host: process.env.PGHOST || 'localhost',
-      user: process.env.PGUSER || 'postgres',
-      password: process.env.PGPASSWORD || undefined,
-      database: process.env.PGDATABASE || 'postgres',
-      port: Number(process.env.PGPORT || 5432),
-      ssl: process.env.PGSSL === 'true' ? { rejectUnauthorized: false } : false,
+// Configuración robusta para Supabase (evita error SELF_SIGNED_CERT_IN_CHAIN)
+let connection;
+if (process.env.DATABASE_URL) {
+  try {
+    const url = new URL(process.env.DATABASE_URL);
+    connection = {
+      host: url.hostname,
+      port: Number(url.port || 5432),
+      user: decodeURIComponent(url.username),
+      password: decodeURIComponent(url.password),
+      database: url.pathname?.slice(1) || 'postgres',
+      ssl: { rejectUnauthorized: false },
     };
+  } catch {
+    // Fallback a connectionString (sigue forzando SSL no verificado)
+    connection = {
+      connectionString: process.env.DATABASE_URL,
+      ssl: { rejectUnauthorized: false },
+    };
+  }
+} else {
+  connection = {
+    host: process.env.PGHOST || 'aws-1-us-east-2.pooler.supabase.com',
+    user: process.env.PGUSER || 'postgres.pmaqxvlphtlcnveqnvcu',
+    password: process.env.PGPASSWORD || 'confident-skia', // ⚠️ evitar hardcodear en prod
+    database: process.env.PGDATABASE || 'postgres',
+    port: Number(process.env.PGPORT || 6543),
+    ssl: { rejectUnauthorized: false },
+  };
+}
 
 export const pool = new Pool(connection);
 

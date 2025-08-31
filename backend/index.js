@@ -62,16 +62,20 @@ app.post('/api/chat/message', authMiddleware, async (req, res) => {
     const previous = await query('SELECT author, content FROM "Message" WHERE sessionId=$1 ORDER BY createdAt ASC LIMIT 15', [sessionId]);
     let botText = '';
     let botEmotion = null;
+    let crisis = false;
     try {
       const r = await generateBotReply(previous.rows.concat([{ author: 'user', content } ]));
       botText = typeof r === 'string' ? r : (r?.text || '');
       botEmotion = typeof r === 'object' ? (r?.emotion || null) : null;
+      crisis = typeof r === 'object' ? Boolean(r?.crisis) : false;
     } catch (modelErr) {
       console.error('Gemini error', modelErr);
       botText = 'Lo siento, ahora mismo no puedo generar respuesta.';
     }
     const botMsg = await query('INSERT INTO "Message" (sessionId, author, content, emotionType) VALUES ($1,$2,$3,$4) RETURNING *', [sessionId, 'bot', botText, botEmotion]);
-    res.json({ sessionId, user: userMsg.rows[0], bot: botMsg.rows[0] });
+    // Si hay indicios de crisis, adjunta recursos de ayuda en Colombia
+    const help = crisis ? getColombiaHelpResources() : null;
+    res.json({ sessionId, user: userMsg.rows[0], bot: botMsg.rows[0], crisis, help });
   } catch (e) { console.error('chat/message error', e); res.status(500).json({ error: e.message }); }
 });
 
@@ -240,3 +244,22 @@ app.post('/api/user/profile/apply-suggestions', authMiddleware, async (req, res)
 
 const port = process.env.PORT || 3000;
 app.listen(port, () => console.log('API listening on ' + port));
+
+// Recursos de ayuda en Colombia (líneas 24/7 y otras)
+function getColombiaHelpResources() {
+  return {
+    country: 'CO',
+    disclaimer: 'Si estás en peligro inmediato, llama a emergencias locales. Estos recursos son confidenciales y gratuitos según el operador indicado.',
+    items: [
+      { name: 'Línea de la Vida (nacional)', contact: '(605) 339 9999', hours: '24/7' },
+      { name: 'Línea de Salud Mental Distrital (Barranquilla)', contact: '315 300 2003', hours: '24/7' },
+      { name: 'Línea Charlemos (WhatsApp)', contact: '318 804 4000', hours: '24/7' },
+      { name: 'Línea 106 Bogotá (y WhatsApp)', contact: '106 / 300 754 8933', hours: '24/7' },
+      { name: 'Línea Púrpura (violencia contra mujeres)', contact: '018000 112 137 / WhatsApp 300 755 1846 / ipurpura@sdmujer.gov.co', hours: '24/7' },
+      { name: 'Línea Psicoactiva (Bogotá) – Prevención consumo de SPA', contact: '01 8000 112 439', hours: 'Horarios institucionales' },
+      { name: 'Línea de Apoyo Emocional (Policía Nacional)', contact: '018000‑910588 (Subsistema de Salud)', hours: '24/7' },
+      { name: 'Meta – Línea Amiga', contact: '312 575 1135', hours: 'Todos los días, 9 a.m. – 9 p.m.' },
+    ],
+    sources: ['iasp.info', 'Ministerio de Salud', 'Bogotá.gov.co', 'Policía Nacional de Colombia']
+  };
+}

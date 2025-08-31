@@ -1,49 +1,52 @@
-# SKAI — Chatbot emocional (Express + Postgres + Gemini)
+# SKAI — Emotional Chatbot (Express + Postgres + Gemini)
 
-## Resumen
-Proyecto full‑stack en español con:
-- Backend Express (JWT) + Postgres. Endpoints para registro/login, sesiones de chat, mensajes y perfil de usuario.
-- Integración con Google AI Studio (Gemini) para generar respuestas y una emoción asociada.
-- Frontend Vite (JS/CSS) con chat multi‑sesión, avatar emocional, y selector de tema claro/oscuro.
+## Overview
+Full‑stack project with:
+- Backend: Express (JWT) + Postgres. Endpoints for auth, chat sessions, messages, and user profile.
+- AI: Google AI Studio (Gemini) generates the bot reply and an emotion label.
+- Frontend: Vite (JS/CSS) chat UI with multi‑session, emotional avatar, and light/dark theme.
+- Crisis support: when high‑risk content is detected, backend flags it and returns Colombia help lines; the UI shows a styled help panel with a Hide button.
 
-## Esquema de datos (clave)
-- User: credenciales básicas (email, password_hash, name).
-- ChatSession: sesiones por usuario.
-- Message: mensajes con author=user|bot, content y emotionType (bot).
-- UserProfile: datos avanzados opcionales (age, occupation, goals, boundaries, …, data JSONB).
-- UserHistory: texto libre de resumen (demo).
+## Data Model (key entities)
+- User: basic credentials (email, password_hash, name).
+- ChatSession: per‑user chat sessions.
+- Message: messages with author=user|bot, content, and emotionType (bot).
+- UserProfile: optional advanced fields (age, occupation, goals, boundaries, …, data JSONB).
+- UserHistory: free‑form summary text (demo).
 
-## Endpoints principales
-- POST /api/register { email, password, name, profile? }: crea usuario; si envías profile, guarda UserProfile.
-- POST /api/login { email, password }: devuelve token y datos básicos del usuario.
-- POST /api/chat/session: crea o reanuda sesión (si envías sessionId).
-- POST /api/chat/message: guarda mensaje, llama a Gemini y persiste respuesta del bot con emotionType.
-- GET /api/chat/sessions, GET /api/chat/session/:id/messages
-- GET/PUT /api/user/profile, GET /api/user/profile/suggestions, POST /api/user/profile/apply-suggestions
-
-## Configuración y ejecución
-Requisitos: Node 18+, Postgres, GEMINI_API_KEY.
+## Quick Start
+Requirements: Node 18+, Postgres (Supabase supported), GEMINI_API_KEY.
 
 Backend
 ```
-cd SKAI/backend
+cd backend
 npm install
-# .env: DATABASE_URL, JWT_SECRET, GEMINI_API_KEY
+# backend/.env: DATABASE_URL or PGHOST/PGUSER/PGPASSWORD/PGDATABASE/PGPORT, JWT_SECRET, GEMINI_API_KEY
 npm run migrate
 npm run dev
 ```
 
 Frontend
 ```
-cd SKAI/frontend
+cd frontend
 npm install
 VITE_API_URL=http://localhost:3000 npm run dev
 ```
 
-Variables (backend)
-- DATABASE_URL (recomendado) o PGHOST/PGUSER/PGPASSWORD/PGDATABASE/PGPORT, PGSSL (true/false)
-- JWT_SECRET, GEMINI_API_KEY, PORT (3000 por defecto), DEBUG_SQL=1 (opcional)
+## Environment & Supabase
+- Preferred: `DATABASE_URL` from Supabase (Connection string → URI), e.g.
+  `postgres://postgres.<user>:<password>@aws-<region>.pooler.supabase.com:6543/postgres?sslmode=require`
+- Or set PG vars: `PGHOST`, `PGUSER`, `PGPASSWORD`, `PGDATABASE=postgres`, `PGPORT=6543`, `PGSSL=true`.
+- SSL note: backend/db.js forces `ssl: { rejectUnauthorized: false }` to avoid SELF_SIGNED_CERT_IN_CHAIN with Supabase pooler.
 
-Notas
-- Registro con “Opciones avanzadas” (edad, ocupación, objetivos, etc.). Si no las completas, solo se guarda lo básico.
-- Revisa AGENTS.md para guía de contribución y Postgres local.
+## Key Endpoints
+- POST `/api/register` { email, password, name, profile? }
+- POST `/api/login` { email, password }
+- POST `/api/chat/session` (create or resume with `sessionId`)
+- POST `/api/chat/message` → persists user msg, calls Gemini, stores bot reply + `emotionType`; may include `{ crisis, help }` when high‑risk
+- GET `/api/chat/sessions`, GET `/api/chat/session/:id/messages`
+- GET/PUT `/api/user/profile`, GET `/api/user/profile/suggestions`, POST `/api/user/profile/apply-suggestions`
+
+## Notes
+- Registration includes optional “Advanced options” (age, occupation, goals, etc.). If omitted, only basic fields are stored.
+- See `AGENTS.md` for contributor guidelines and local DB tips.

@@ -91,6 +91,8 @@ const state = {
   error: null,
   emotion: 'predeterminado',  // Inicialmente en reposo
   currentGif: 'predeterminado',  // Para gestionar el gif actual
+  help: null, // Recursos de ayuda en crisis (desde backend)
+  helpHidden: false,
 };
 
 // ---------- RENDER ROOT ----------
@@ -217,6 +219,7 @@ function chatView() {
   const msgsHtml = state.messages.length
     ? state.messages.map((m) => messageBubble(m)).join('')
     : `<div class="empty muted">No hay mensajes aún. Escribe para comenzar ✍️</div>`;
+  const helpHtml = renderHelpPanel();
 
   // Avatar según emoción actual (usa el mapa central)
   const cur = EMOTION_ASSETS[state.emotion] || EMOTION_ASSETS.predeterminado;
@@ -251,6 +254,7 @@ function chatView() {
         <!-- Mensajes (columna 1) -->
         <section class="messages" id="messages" role="log">
           ${msgsHtml}
+          ${helpHtml}
         </section>
 
         <!-- Avatar emocional (columna 2, a la DERECHA) -->
@@ -283,6 +287,25 @@ function messageBubble(m) {
     <div class="avatar" aria-hidden="true">${role === 'user' ? 'T' : 'S'}</div>
     <div class="bubble"><strong class="who">${label}:</strong> ${escapeHtml(m.content)}</div>
   </article>`;
+}
+
+function renderHelpPanel() {
+  const h = state.help;
+  if (state.helpHidden) return '';
+  if (!h || !Array.isArray(h.items) || h.items.length === 0) return '';
+  const items = h.items.map(it => `<li><strong>${escapeHtml(it.name)}:</strong> ${escapeHtml(it.contact)}${it.hours ? ` – <span class="muted">${escapeHtml(it.hours)}</span>` : ''}</li>`).join('');
+  return `
+    <aside class="help-panel card-inner">
+      <div class="help-head">
+        <div class="help-title">
+          <span aria-hidden="true">⚠️</span>
+          <strong>Apoyo emocional y salud mental (${escapeHtml(h.country)})</strong>
+        </div>
+        <button id="helpHide" class="btn btn--sm" type="button" title="Ocultar">Ocultar</button>
+      </div>
+      <p class="help-note small">${escapeHtml(h.disclaimer || 'Si estás en peligro inmediato, contacta a emergencias locales.')}</p>
+      <ul class="help-list">${items}</ul>
+    </aside>`;
 }
 
 // ---------- BINDINGS ----------
@@ -398,6 +421,12 @@ function bindChat() {
     }
   });
 
+  // Ocultar panel de ayuda si está visible
+  document.querySelector('#helpHide')?.addEventListener('click', () => {
+    state.helpHidden = true;
+    render();
+  });
+
   // Primera sincronización del avatar
   updateEmotionAvatar();
   scrollMessagesBottom();
@@ -439,6 +468,8 @@ async function startSession() {
   try {
     // Al crear una nueva sesión, resetea el avatar a neutral
     state.emotion = 'predeterminado';
+    state.help = null;
+    state.helpHidden = false;
     updateEmotionAvatar();
     const s = await createSession();
     state.currentSessionId = Number(s.sessionid ?? s.id ?? s.sessionId);
@@ -467,6 +498,8 @@ async function openSession(id) {
     setCurrentSessionId(state.currentSessionId);
     // Avatar neutral mientras se carga el historial de la sesión
     state.emotion = 'predeterminado';
+    state.help = null;
+    state.helpHidden = false;
     updateEmotionAvatar();
     state.messages = await getMessages(id);
     state.emotion = emotionFromHistory(state.messages);
@@ -494,6 +527,8 @@ async function sendCurrentMessage() {
   textarea.value = '';
   const optimistic = { messageid: 'temp' + Date.now(), author: 'user', content: text };
   state.messages.push(optimistic);
+  state.help = null; // limpia panel de ayuda al enviar un nuevo mensaje
+  state.helpHidden = false;
   render();
   scrollMessagesBottom(true);
 
@@ -506,6 +541,9 @@ async function sendCurrentMessage() {
   try {
     const resp = await sendMessage(state.currentSessionId, text);
     state.messages = state.messages.filter((m) => m !== optimistic).concat([resp.user, resp.bot]);
+    // Panel de ayuda si backend detecta crisis
+    state.help = resp.help || null;
+    state.helpHidden = !state.help ? false : false; // asegúrate de mostrar si hay nueva ayuda
 
     // 👇 EMOCIÓN RECIBIDA DESDE BACKEND (gemini.js)
     const be = String(resp?.bot?.emotion || '').toLowerCase();
