@@ -226,6 +226,7 @@ function chatView() {
   const avatarSrc = cur.src;
   const avatarAlt = cur.alt;
 
+  const userName = state.user?.name ? escapeHtml(state.user.name) : 'Usuario';
   return `
   <section class="chat-shell fade-in">
     <!-- Izquierda: sidebar -->
@@ -243,7 +244,7 @@ function chatView() {
     <!-- Derecha: panel de chat, con cuerpo a dos columnas (mensajes | avatar) -->
     <main class="chat card-inner" aria-live="polite" aria-busy="${state.loading}">
       <header class="chat-head">
-        <h2 class="chat-title">SKAI</h2>
+        <h2 class="chat-title">SKAI · ${userName}</h2>
         <div class="status-row">
           ${state.loading ? '<span class="dot dot--pulse" aria-label="Cargando"></span><span class="small">Cargando…</span>' : ''}
           ${state.typing ? '<span class="dot dot--typing" aria-label="Escribiendo"></span><span class="small">El bot está escribiendo…</span>' : ''}
@@ -280,7 +281,7 @@ function chatView() {
 
 function messageBubble(m) {
   const role = m.author === 'user' ? 'user' : 'bot';
-  const label = m.author === 'user' ? 'Tú' : 'Bot';
+  const label = m.author === 'user' ? (state.user?.name || 'Tú') : 'SKAI';
 
   // Renderiza solo el texto del mensaje (m.content)
   return `<article class="message ${role}">
