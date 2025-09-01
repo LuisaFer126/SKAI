@@ -5,7 +5,7 @@ Full‑stack project with:
 - Backend: Express (JWT) + Postgres. Endpoints for auth, chat sessions, messages, and user profile.
 - AI: Google AI Studio (Gemini) generates the bot reply and an emotion label.
 - Frontend: Vite (JS/CSS) chat UI with multi‑session, emotional avatar, and light/dark theme.
-- Crisis support: when high‑risk content is detected, backend flags it and returns Colombia help lines; the UI shows a styled help panel with a Hide button...
+- Crisis support: when high‑risk content is detected, backend flags it and returns Colombia help lines; the UI shows a styled help panel with a Hide button....
 
 ## Data Model (key entities)
 - User: basic credentials (email, password_hash, name).
