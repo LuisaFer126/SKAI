@@ -91,6 +91,15 @@ function nextVariant(name) {
   return list[next];
 }
 
+// Configurable minimum time (ms) to show the 'pensando' gif per action.
+function getThinkingMinMs() {
+  const envVal = import.meta?.env?.VITE_THINKING_MIN_MS;
+  const lsVal = (() => { try { return localStorage.getItem('skai:thinking:minMs'); } catch { return null; } })();
+  const raw = Number(lsVal ?? envVal ?? 1800);
+  const ms = Number.isFinite(raw) ? raw : 1800;
+  return Math.max(600, Math.min(ms, 5000));
+}
+
 // Fallback sencillo (por si el backend no envía emoción)
 function fallbackEmotion(text = '') {
   const t = String(text).toLowerCase();
@@ -576,7 +585,7 @@ async function sendCurrentMessage() {
     state.helpHidden = !state.help ? false : false; // asegúrate de mostrar si hay nueva ayuda
 
     // Espera a que el gif de "pensando" cumpla un tiempo mínimo antes de cambiar
-    const minMs = 1800;
+    const minMs = getThinkingMinMs();
     const elapsed = Date.now() - (state.thinkingSince || 0);
     if (elapsed < minMs) await new Promise(r => setTimeout(r, minMs - elapsed));
 
@@ -594,7 +603,7 @@ async function sendCurrentMessage() {
     updateEmotionAvatar();
   } catch (err) {
     // Asegura que "pensando" se vea el tiempo mínimo antes de notificar error
-    const minMs = 1800;
+    const minMs = getThinkingMinMs();
     const elapsed = Date.now() - (state.thinkingSince || 0);
     if (elapsed < minMs) await new Promise(r => setTimeout(r, minMs - elapsed));
     // Error → triste temporal (parpadeo)

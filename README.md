@@ -37,6 +37,11 @@ VITE_API_URL=http://localhost:3000 npm run dev
 - `npm run dev`: Vite en desarrollo.
 - `npm run build`: build de producción.
 - `npm run preview`: sirve el build local.
+  
+Configuraciones útiles (frontend)
+- Duración mínima del gif "pensando":
+  - LocalStorage: `localStorage.setItem('skai:thinking:minMs','2000')`
+  - Env (build): `VITE_THINKING_MIN_MS=2000`
 
 ## Estructura
 - `frontend/src/`: JS/CSS (API client en `src/api.js`).
