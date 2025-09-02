@@ -4,9 +4,13 @@ import axios from 'axios';
 // Otherwise, use VITE_API_URL or fallback to localhost for local dev.
 const isBrowser = typeof window !== 'undefined';
 const isLocalhost = isBrowser && /^(localhost|127\.0\.0\.1)/.test(location.hostname);
+const RAILWAY_API = 'https://skia-backend-production.up.railway.app';
+// Default behavior:
+// - On Vercel (not localhost): same-origin '' and let vercel.json rewrite to Railway.
+// - On localhost: default to Railway API (no need to run backend locally).
 const API_URL =
   import.meta.env.VITE_API_URL ||
-  (isBrowser && !isLocalhost ? '' : 'http://localhost:3000');
+  (isBrowser && !isLocalhost ? '' : RAILWAY_API);
 
 export function setAuthToken(token) {
   axios.defaults.headers.common['Authorization'] = token ? `Bearer ${token}` : '';

@@ -8,10 +8,10 @@ Requisitos: Node 18+.
 ```
 cd frontend
 npm install
-# Opción A (backend local):
+# Por defecto (localhost) el frontend usa Railway automáticamente.
+npm run dev
+# Si quieres apuntar a un backend local en vez de Railway:
 VITE_API_URL=http://localhost:3000 npm run dev
-# Opción B (usar Railway en dev):
-VITE_API_URL=https://skia-backend-production.up.railway.app npm run dev
 ```
 
 ## Producción (Vercel)
@@ -20,7 +20,7 @@ VITE_API_URL=https://skia-backend-production.up.railway.app npm run dev
   ```json
   { "rewrites": [{ "source": "/api/:path*", "destination": "https://skia-backend-production.up.railway.app/api/:path*" }] }
   ```
-- No necesitas `VITE_API_URL` en Vercel.
+- No necesitas `VITE_API_URL` en Vercel (usa same-origin + rewrites).
 
 ## Scripts
 - `npm run dev`: Vite en desarrollo.
