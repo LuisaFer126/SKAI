@@ -225,8 +225,8 @@ body{
 
 /* Panel derecho (chat) */
 .chat{
-  display:flex;
-  flex-direction:column;
+  display:grid;
+  grid-template-rows: auto 1fr auto; /* head | body (scroll) | composer */
   gap:.8rem;
   min-height:0;
   height: 100%;
@@ -280,6 +280,8 @@ body{
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
   padding-right: 4px;
+  /* Espacio inferior para no tapar mensajes con el composer en pantallas pequeñas */
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 88px);
 }
 .empty{padding:.5rem 0}
 
@@ -316,7 +318,7 @@ body{
 .who{font-weight:800}
 
 /* Composer */
-.composer{display:flex;flex-direction:column;gap:.4rem; position: sticky; bottom: 0; z-index: 1; background: inherit;}
+.composer{display:flex;flex-direction:column;gap:.4rem; background: inherit; padding-bottom: env(safe-area-inset-bottom, 0px);}
 .composer-row{display:grid;grid-template-columns: 1fr auto; gap:.6rem; align-items:end}
 .textarea{resize:vertical;max-height:200px;min-height:42px}
 .send-btn{min-width:96px}
