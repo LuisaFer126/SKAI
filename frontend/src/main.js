@@ -284,9 +284,10 @@ function messageBubble(m) {
   const label = m.author === 'user' ? (state.user?.name || 'Tú') : 'SKAI';
 
   // Renderiza solo el texto del mensaje (m.content)
+  const content = typeof m.content === 'string' ? m.content : (m.content != null ? JSON.stringify(m.content) : '');
   return `<article class="message ${role}">
     <div class="avatar" aria-hidden="true">${role === 'user' ? 'T' : 'S'}</div>
-    <div class="bubble"><strong class="who">${label}:</strong> ${escapeHtml(m.content)}</div>
+    <div class="bubble"><strong class="who">${label}:</strong> ${escapeHtml(content)}</div>
   </article>`;
 }
 
