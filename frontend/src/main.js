@@ -362,7 +362,8 @@ function bindAuth() {
       e.target.reset();
       switchTabs('login');
     } catch (err) {
-      setStatus('#regMsg', err.response?.data?.error || err.message);
+      const msg = normalizeError(err);
+      setStatus('#regMsg', msg);
     } finally {
       setButtonBusy(e.submitter, false);
     }
@@ -388,7 +389,8 @@ function bindAuth() {
       await loadSessions();
       render();
     } catch (err) {
-      setStatus('#logMsg', err.response?.data?.error || err.message);
+      const msg = normalizeError(err);
+      setStatus('#logMsg', msg);
     } finally {
       setButtonBusy(e.submitter, false);
     }
@@ -636,6 +638,14 @@ function setButtonBusy(btn, busy) {
 function setStatus(selector, text) {
   const el = document.querySelector(selector);
   if (el) el.textContent = text || '';
+}
+
+function normalizeError(err) {
+  const data = err?.response?.data;
+  if (typeof data === 'string') return data;
+  if (data && typeof data.error === 'string') return data.error;
+  if (typeof err?.message === 'string') return err.message;
+  try { return JSON.stringify(data ?? err) } catch { return 'Error inesperado'; }
 }
 
 function scrollMessagesBottom(force = false) {
