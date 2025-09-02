@@ -63,22 +63,27 @@ function ensureThemeToggle() {
 }
 
 /* Activos del avatar emocional (GIF/PNG por emoción) */
+const BASE_URL = (import.meta?.env?.BASE_URL || '/').replace(/\/+$|^$/g, '/');
+const asset = (p) => {
+  const s = String(p || '').replace(/^\/+/, '');
+  return BASE_URL + s;
+};
 const EMOTION_ASSETS = {
-  predeterminado: { src: '/reposo.gif', alt: 'Reposo…  😴' }, // Gif predeterminado
-  pensando: { src: '/pensando.gif', alt: 'Pensando… 😯'  },
-  feliz:    { src: '/feliz.gif',    alt: 'Feliz ☺️'    },
-  triste:   { src: '/triste.gif',   alt: 'Triste 😫'   },
+  predeterminado: { src: asset('reposo.gif'), alt: 'Reposo…  😴' }, // Gif predeterminado
+  pensando: { src: asset('pensando.gif'), alt: 'Pensando… 😯'  },
+  feliz:    { src: asset('feliz.gif'),    alt: 'Feliz ☺️'    },
+  triste:   { src: asset('triste.gif'),   alt: 'Triste 😫'   },
 };
 
 // Secuencias alternables de imágenes (en /public).
 // Para activar, agrega archivos con estos nombres en public/.
 const VARIANT_SETS = {
   // Variantes para la ilustración de inicio (reposo)
-  reposo: ['/reposo1.gif', '/reposo2.gif', '/reposo3.gif', '/reposo.gif'],
-  feliz: ['/feliz1.gif', '/feliz2.gif', '/feliz.gif'],
-  triste: ['/triste1.gif', '/triste2.gif', '/triste.gif'],
-  pensando: ['/pensando1.gif', '/pensando.gif'],
-  predeterminado: ['/reposo1.gif', '/reposo2.gif', '/reposo.gif'],
+  reposo: ['reposo1.gif', 'reposo2.gif', 'reposo3.gif', 'reposo.gif'],
+  feliz: ['feliz1.gif', 'feliz2.gif', 'feliz.gif'],
+  triste: ['triste1.gif', 'triste2.gif', 'triste.gif'],
+  pensando: ['pensando1.gif', 'pensando.gif'],
+  predeterminado: ['reposo1.gif', 'reposo2.gif', 'reposo.gif'],
 };
 
 function getVariantList(name) {
@@ -102,7 +107,9 @@ function nextVariant(name) {
   if (!list.length) return null;
   const next = (Number.isFinite(idx) ? idx + 1 : 0) % list.length;
   try { localStorage.setItem(key, String(next)); } catch {}
-  return list[next];
+  const val = String(list[next] ?? '');
+  // Si es ruta absoluta, úsala tal cual; si es relativa, resuélvela con BASE_URL
+  return /^(https?:)?\//.test(val) ? val : asset(val);
 }
 
 // Configurable minimum time (ms) to show the 'pensando' gif per action.
@@ -158,7 +165,7 @@ function render() {
 
 // ---------- AUTH VIEWS ----------
 function authView() {
-  const saludoSrc = nextVariant('reposo') || '/reposo.gif';
+  const saludoSrc = nextVariant('reposo') || asset('reposo.gif');
   return `
   <section class="shell fade-in">
     <div class="auth-grid card-outer">
@@ -758,9 +765,9 @@ function escapeHtml(str) {
   ensureThemeToggle();
   // Descubrir dinámicamente ilustraciones de inicio disponibles (reposo1..reposo10, reposo.gif) y almacenarlas
   queueMicrotask(() => {
-    const base = ['/reposo.gif'];
+    const base = [asset('reposo.gif')];
     const candidates = [];
-    for (let i = 1; i <= 10; i++) candidates.push(`/reposo${i}.gif`);
+    for (let i = 1; i <= 10; i++) candidates.push(asset(`reposo${i}.gif`));
     const check = (src) => new Promise((resolve) => {
       const img = new Image();
       let done = false;
