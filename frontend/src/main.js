@@ -777,6 +777,42 @@ function escapeHtml(str) {
       } catch {}
     }).catch(() => {});
   });
+  // Descubre dinámicamente variantes de emociones presentes en /public
+  queueMicrotask(() => {
+    const exts = ['gif','png','jpg','webp'];
+    const specs = [
+      { name: 'feliz', prefixes: ['feliz'], fallback: ['/feliz.gif'] },
+      { name: 'triste', prefixes: ['triste'], fallback: ['/triste.gif'] },
+      { name: 'pensando', prefixes: ['pensando'], fallback: ['/pensando.gif'] },
+      { name: 'predeterminado', prefixes: ['reposo','idle','default'], fallback: ['/reposo.gif'] },
+    ];
+    const check = (src) => new Promise((resolve) => {
+      const img = new Image();
+      let done = false;
+      const finish = (ok) => { if (done) return; done = true; resolve(ok ? src : null); };
+      img.onload = () => finish(true);
+      img.onerror = () => finish(false);
+      img.src = src;
+      setTimeout(() => finish(false), 1200);
+    });
+    specs.forEach(({ name, prefixes, fallback }) => {
+      const candidates = [];
+      for (let i = 1; i <= 20; i++) {
+        for (const p of prefixes) for (const e of exts) candidates.push(`/${p}${i}.${e}`);
+      }
+      for (const p of prefixes) for (const e of exts) candidates.push(`/${p}.${e}`);
+      Promise.all(candidates.map(check)).then((found) => {
+        const list = found.filter(Boolean);
+        const finalList = list.length ? list : fallback;
+        setVariantList(name, finalList);
+        try {
+          const key = `skai:variant:${name}`;
+          const idx = Number(localStorage.getItem(key) || '0');
+          if (!(idx >= 0 && idx < finalList.length)) localStorage.setItem(key, '0');
+        } catch {}
+      }).catch(() => {});
+    });
+  });
   // Comprobación ligera de salud de API y aviso visual si falla
   queueMicrotask(async () => {
     const bannerId = 'apiStatusBanner';
