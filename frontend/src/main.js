@@ -73,7 +73,7 @@ const EMOTION_ASSETS = {
 // Secuencias alternables de imágenes (en /public).
 // Para activar, agrega archivos con estos nombres en public/.
 const VARIANT_SETS = {
-  saludo: ['/saludo1.gif', '/saludo2.gif', '/saludo3.gif', '/saludo.gif'],
+  saludando: ['/saludando1.gif', '/saludando2.gif', '/saludando3.gif', '/saludando.gif', '/saludo.gif'],
   feliz: ['/feliz1.gif', '/feliz2.gif', '/feliz.gif'],
   triste: ['/triste1.gif', '/triste2.gif', '/triste.gif'],
   pensando: ['/pensando1.gif', '/pensando.gif'],
@@ -157,7 +157,7 @@ function render() {
 
 // ---------- AUTH VIEWS ----------
 function authView() {
-  const saludoSrc = nextVariant('saludo') || '/saludo.gif';
+  const saludoSrc = nextVariant('saludando') || '/saludando.gif';
   return `
   <section class="shell fade-in">
     <div class="auth-grid card-outer">
@@ -757,9 +757,9 @@ function escapeHtml(str) {
   ensureThemeToggle();
   // Descubrir dinámicamente saludos disponibles (saludo1..saludo10, saludo.gif) y almacenarlos
   queueMicrotask(() => {
-    const base = ['/saludo.gif'];
+    const base = ['/saludando.gif', '/saludo.gif'];
     const candidates = [];
-    for (let i = 1; i <= 10; i++) candidates.push(`/saludo${i}.gif`);
+    for (let i = 1; i <= 10; i++) candidates.push(`/saludando${i}.gif`);
     const check = (src) => new Promise((resolve) => {
       const img = new Image();
       let done = false;
@@ -772,7 +772,7 @@ function escapeHtml(str) {
     Promise.all(candidates.map(check)).then((found) => {
       const list = found.filter(Boolean);
       const finalList = list.length ? [...list] : base;
-      setVariantList('saludo', finalList);
+      setVariantList('saludando', finalList);
     }).catch(() => {});
   });
   // Comprobación ligera de salud de API y aviso visual si falla
