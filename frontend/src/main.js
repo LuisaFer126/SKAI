@@ -137,6 +137,8 @@ const state = {
   lastEmotion: null,
   help: null, // Recursos de ayuda en crisis (desde backend)
   helpHidden: false,
+  tipTimer: null,
+  tipIndex: 0,
 };
 
 // ---------- RENDER ROOT ----------
@@ -272,6 +274,13 @@ function chatView() {
   const avatarAlt = cur.alt;
 
   const userName = state.user?.name ? escapeHtml(state.user.name) : 'Usuario';
+  const tipsBox = `
+    <section class="card-inner tips-box desktop-only" aria-live="polite">
+      <div class="tips-head">
+        <div class="tips-title small">Pausa consciente</div>
+      </div>
+      <div id="tipText">&nbsp;</div>
+    </section>`;
   return `
   <section class="chat-shell fade-in">
     <!-- Izquierda: sidebar -->
@@ -282,6 +291,7 @@ function chatView() {
       </div>
       <ul class="sessions" id="sessionList">${allSessionsHtml}</ul>
       <div class="sidebar-foot">
+        ${tipsBox}
         <button id="logout" class="btn full" title="Cerrar sesión">Salir</button>
       </div>
     </aside>
@@ -479,6 +489,7 @@ function bindChat() {
   // Primera sincronización del avatar
   updateEmotionAvatar();
   scrollMessagesBottom();
+  startTipsRotation();
 }
 
 // ---------- DATA OPS ----------
@@ -797,3 +808,21 @@ function escapeHtml(str) {
 
   render();
 })();
+
+const TIPS = [
+  'Inhala 4, retén 4, exhala 6',
+  'Relaja hombros y mandíbula',
+  'Pon nombre a lo que sientes',
+  'Una cosa pequeña que puedas hacer ahora',
+  'Cuenta 5 cosas que ves',
+  'Eres más que este momento',
+];
+
+function startTipsRotation() {
+  try { if (state.tipTimer) { clearInterval(state.tipTimer); state.tipTimer = null; } } catch {}
+  const el = document.getElementById('tipText');
+  if (!el) return;
+  const setTip = () => { el.textContent = TIPS[state.tipIndex % TIPS.length]; state.tipIndex = (state.tipIndex + 1) % TIPS.length; };
+  setTip();
+  state.tipTimer = setInterval(setTip, 7000);
+}
