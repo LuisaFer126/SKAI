@@ -56,7 +56,7 @@ Configuraciones útiles (frontend)
   - `GET/PUT /api/user/profile`, `GET /api/user/profile/suggestions`, `POST /api/user/profile/apply-suggestions`
 
 Alternancia de ilustraciones
-- Pantalla de inicio: alterna automáticamente entre `reposo1.gif`, `reposo2.gif`, `reposo3.gif`, …, con fallback a `reposo.gif`.
-- Coloca los archivos en `frontend/public/`. El frontend detecta hasta `reposo10.gif` al cargar y rota en cada render.
+- Pantalla de inicio: alterna automáticamente entre `saludando1.gif`, `saludando2.gif`, `saludando3.gif`, …, con fallback a `saludando.gif` (o `saludo.gif` si aún lo usas).
+- Coloca los archivos en `frontend/public/`. El frontend detecta hasta `saludando10.gif` al cargar y rota en cada render.
 
 Consulta `AGENTS.md` para pautas de contribución y rutas.
