@@ -55,4 +55,8 @@ Configuraciones útiles (frontend)
   - `GET /api/chat/sessions`, `GET /api/chat/session/:id/messages`
   - `GET/PUT /api/user/profile`, `GET /api/user/profile/suggestions`, `POST /api/user/profile/apply-suggestions`
 
+Alternancia de ilustraciones
+- Pantalla de inicio: alterna automáticamente entre `saludo1.gif`, `saludo2.gif`, `saludo3.gif`, …, con fallback a `saludo.gif`.
+- Coloca los archivos en `frontend/public/`. El frontend detecta hasta `saludo10.gif` al cargar y rota en cada render.
+
 Consulta `AGENTS.md` para pautas de contribución y rutas.

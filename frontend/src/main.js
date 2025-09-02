@@ -80,6 +80,19 @@ const VARIANT_SETS = {
   predeterminado: ['/reposo1.gif', '/reposo2.gif', '/reposo.gif'],
 };
 
+function getVariantList(name) {
+  try {
+    const raw = localStorage.getItem(`skai:variant:list:${name}`);
+    const arr = raw ? JSON.parse(raw) : null;
+    if (Array.isArray(arr) && arr.length) return arr;
+  } catch {}
+  return VARIANT_SETS[name] || [];
+}
+
+function setVariantList(name, list) {
+  try { localStorage.setItem(`skai:variant:list:${name}`, JSON.stringify(list)); } catch {}
+}
+
 function nextVariant(name) {
   const key = `skai:variant:${name}`;
   let idx = -1;
@@ -720,6 +733,26 @@ function escapeHtml(str) {
 (async function init() {
   // Asegura el botón de tema persistente y aplica preferencia
   ensureThemeToggle();
+  // Descubrir dinámicamente saludos disponibles (saludo1..saludo10, saludo.gif) y almacenarlos
+  queueMicrotask(() => {
+    const base = ['/saludo.gif'];
+    const candidates = [];
+    for (let i = 1; i <= 10; i++) candidates.push(`/saludo${i}.gif`);
+    const check = (src) => new Promise((resolve) => {
+      const img = new Image();
+      let done = false;
+      const finish = (ok) => { if (done) return; done = true; resolve(ok ? src : null); };
+      img.onload = () => finish(true);
+      img.onerror = () => finish(false);
+      img.src = src;
+      setTimeout(() => finish(false), 1500);
+    });
+    Promise.all(candidates.map(check)).then((found) => {
+      const list = found.filter(Boolean);
+      const finalList = list.length ? [...list] : base;
+      setVariantList('saludo', finalList);
+    }).catch(() => {});
+  });
   // Comprobación ligera de salud de API y aviso visual si falla
   queueMicrotask(async () => {
     const bannerId = 'apiStatusBanner';
