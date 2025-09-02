@@ -561,7 +561,10 @@ async function sendCurrentMessage() {
 
   state.sending = true;
   state.typing = true;
-  state.emotion = 'pensando';            // ← mientras enviamos
+  // Entrar en estado "pensando": forzar rotación y asegurar tiempo mínimo visible
+  state.emotion = 'pensando';
+  state.lastEmotion = null; // fuerza nueva variante en updateEmotionAvatar
+  state.thinkingSince = Date.now();
   updateEmotionAvatar();
   renderPartialStatus();
 
@@ -571,6 +574,11 @@ async function sendCurrentMessage() {
     // Panel de ayuda si backend detecta crisis
     state.help = resp.help || null;
     state.helpHidden = !state.help ? false : false; // asegúrate de mostrar si hay nueva ayuda
+
+    // Espera a que el gif de "pensando" cumpla un tiempo mínimo antes de cambiar
+    const minMs = 1800;
+    const elapsed = Date.now() - (state.thinkingSince || 0);
+    if (elapsed < minMs) await new Promise(r => setTimeout(r, minMs - elapsed));
 
     // 👇 EMOCIÓN RECIBIDA DESDE BACKEND (gemini.js)
     const be = String(resp?.bot?.emotion || '').toLowerCase();
@@ -585,6 +593,10 @@ async function sendCurrentMessage() {
     scrollMessagesBottom(true);
     updateEmotionAvatar();
   } catch (err) {
+    // Asegura que "pensando" se vea el tiempo mínimo antes de notificar error
+    const minMs = 1800;
+    const elapsed = Date.now() - (state.thinkingSince || 0);
+    if (elapsed < minMs) await new Promise(r => setTimeout(r, minMs - elapsed));
     // Error → triste temporal (parpadeo)
     blinkEmotion('triste');
     alert('Error enviando mensaje: ' + (err.response?.data?.error || err.message));
