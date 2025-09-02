@@ -70,6 +70,23 @@ const EMOTION_ASSETS = {
   triste:   { src: '/triste.gif',   alt: 'Triste 😫'   },
 };
 
+// Secuencias alternables de imágenes (en /public).
+// Para activar, agrega archivos con estos nombres en public/.
+const VARIANT_SETS = {
+  saludo: ['/saludo1.gif', '/saludo2.gif', '/saludo3.gif'],
+};
+
+function nextVariant(name) {
+  const key = `skai:variant:${name}`;
+  let idx = -1;
+  try { idx = Number(localStorage.getItem(key) || '-1'); } catch { idx = -1; }
+  const list = VARIANT_SETS[name] || [];
+  if (!list.length) return null;
+  const next = (Number.isFinite(idx) ? idx + 1 : 0) % list.length;
+  try { localStorage.setItem(key, String(next)); } catch {}
+  return list[next];
+}
+
 // Fallback sencillo (por si el backend no envía emoción)
 function fallbackEmotion(text = '') {
   const t = String(text).toLowerCase();
@@ -112,6 +129,7 @@ function render() {
 
 // ---------- AUTH VIEWS ----------
 function authView() {
+  const saludoSrc = nextVariant('saludo') || '/saludo.gif';
   return `
   <section class="shell fade-in">
     <div class="auth-grid card-outer">
@@ -123,7 +141,7 @@ function authView() {
         </header>
 
         <figure class="brand-image" aria-label="Imagen de presentación">
-          <img src="/saludo.gif" alt="Ilustración SKIA" />
+          <img src="${saludoSrc}" alt="Ilustración SKIA" />
         </figure>
 
         <section class="brand-copy">
