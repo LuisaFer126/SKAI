@@ -16,7 +16,7 @@ VITE_API_URL=http://localhost:3000 npm run dev
 
 ## Producción (Vercel)
 - El frontend usa llamadas same-origin a `/api/*`.
-- `SKAI/vercel.json` reescribe a Railway:
+ - `SKAI/frontend/vercel.json` reescribe a Railway:
   ```json
   { "rewrites": [{ "source": "/api/:path*", "destination": "https://skia-backend-production.up.railway.app/api/:path*" }] }
   ```
