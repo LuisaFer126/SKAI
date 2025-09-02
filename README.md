@@ -22,6 +22,17 @@ VITE_API_URL=http://localhost:3000 npm run dev
   ```
 - No necesitas `VITE_API_URL` en Vercel (usa same-origin + rewrites).
 
+## Despliegue en Railway (Frontend con red privada)
+- Añade un nuevo servicio en Railway apuntando a `SKAI/frontend`.
+- Variables de entorno:
+  - `BACKEND_URL=http://skia-backend.railway.internal:3000`
+- Railway Build/Start:
+  - Build: `npm ci && npm run build`
+  - Start: `npm start`
+- ¿Cómo funciona?
+  - `server.js` sirve `dist/` y proxea `/api/*` hacia `BACKEND_URL` usando la red privada de Railway.
+  - El navegador llama same-origin `/api` y nunca toca el host interno.
+
 ## Scripts
 - `npm run dev`: Vite en desarrollo.
 - `npm run build`: build de producción.

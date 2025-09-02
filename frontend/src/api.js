@@ -3,10 +3,14 @@ import axios from 'axios';
 // In production (Vercel), prefer same-origin '/api' via rewrites.
 // Otherwise, use VITE_API_URL or fallback to localhost for local dev.
 const isBrowser = typeof window !== 'undefined';
+const host = isBrowser ? (location.hostname || '') : '';
+const isLocalhost = /^(localhost|127\.0\.0\.1)$/.test(host);
 const RAILWAY_API = 'https://skia-backend-production.up.railway.app';
-// Default: always use Railway unless explicitly overridden via VITE_API_URL.
-// This avoids relying on Vercel rewrites and prevents 404 on /api/*.
-const API_URL = import.meta.env.VITE_API_URL || RAILWAY_API;
+// Default behavior suitable for Railway migration:
+// - If VITE_API_URL is set → use it.
+// - If not localhost (e.g., deployed on Railway) → same-origin '' and rely on server.js proxy to internal backend.
+// - If localhost → use public Railway API so you don't need a local backend.
+const API_URL = import.meta.env.VITE_API_URL || (isBrowser && !isLocalhost ? '' : RAILWAY_API);
 
 export function setAuthToken(token) {
   axios.defaults.headers.common['Authorization'] = token ? `Bearer ${token}` : '';
