@@ -73,7 +73,11 @@ const EMOTION_ASSETS = {
 // Secuencias alternables de imágenes (en /public).
 // Para activar, agrega archivos con estos nombres en public/.
 const VARIANT_SETS = {
-  saludo: ['/saludo1.gif', '/saludo2.gif', '/saludo3.gif'],
+  saludo: ['/saludo1.gif', '/saludo2.gif', '/saludo3.gif', '/saludo.gif'],
+  feliz: ['/feliz1.gif', '/feliz2.gif', '/feliz.gif'],
+  triste: ['/triste1.gif', '/triste2.gif', '/triste.gif'],
+  pensando: ['/pensando1.gif', '/pensando.gif'],
+  predeterminado: ['/reposo1.gif', '/reposo2.gif', '/reposo.gif'],
 };
 
 function nextVariant(name) {
@@ -108,6 +112,7 @@ const state = {
   error: null,
   emotion: 'predeterminado',  // Inicialmente en reposo
   currentGif: 'predeterminado',  // Para gestionar el gif actual
+  lastEmotion: null,
   help: null, // Recursos de ayuda en crisis (desde backend)
   helpHidden: false,
 };
@@ -598,13 +603,26 @@ function updateEmotionAvatar() {
   const label = document.getElementById('emotionLabel');
   if (!img) return;
 
-  // Comprobar si el gif ya terminó antes de cambiarlo
-  const cur = EMOTION_ASSETS[state.emotion] || EMOTION_ASSETS.predeterminado;
-  if (img.getAttribute('src') !== cur.src) {
-    img.setAttribute('src', cur.src);
-    img.setAttribute('alt', cur.alt);
-    if (label) label.textContent = cur.alt;
+  const base = EMOTION_ASSETS[state.emotion] || EMOTION_ASSETS.predeterminado;
+  let desiredSrc = base.src;
+  let desiredAlt = base.alt;
+
+  // Rota variante sólo cuando cambia la emoción
+  if (state.lastEmotion !== state.emotion) {
+    const variant = nextVariant(state.emotion);
+    if (variant) desiredSrc = variant;
+  } else {
+    desiredSrc = img.getAttribute('src') || base.src;
   }
+
+  if (img.getAttribute('src') !== desiredSrc) {
+    img.onerror = () => { img.onerror = null; img.setAttribute('src', base.src); };
+    img.setAttribute('src', desiredSrc);
+    img.setAttribute('alt', desiredAlt);
+    if (label) label.textContent = desiredAlt;
+  }
+
+  state.lastEmotion = state.emotion;
 }
 
 // Parpadeo de emoción temporal y retorno al estado previo
