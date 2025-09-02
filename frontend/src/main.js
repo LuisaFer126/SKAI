@@ -73,7 +73,7 @@ const EMOTION_ASSETS = {
 // Secuencias alternables de imágenes (en /public).
 // Para activar, agrega archivos con estos nombres en public/.
 const VARIANT_SETS = {
-  saludo: ['/saludo1.gif', '/saludo2.gif', '/saludo3.gif', '/saludo.gif'],
+  saludo: ['/saludo1.gif', '/saludo2.gif', '/saludo3.gif', '/saludo4.gif', '/saludo.gif'],
   feliz: ['/feliz1.gif', '/feliz2.gif', '/feliz.gif'],
   triste: ['/triste1.gif', '/triste2.gif', '/triste.gif'],
   pensando: ['/pensando1.gif', '/pensando.gif'],
@@ -97,8 +97,9 @@ function nextVariant(name) {
   const key = `skai:variant:${name}`;
   let idx = -1;
   try { idx = Number(localStorage.getItem(key) || '-1'); } catch { idx = -1; }
-  const list = VARIANT_SETS[name] || [];
+  const list = getVariantList(name);
   if (!list.length) return null;
+  if (idx >= list.length) idx = -1;
   const next = (Number.isFinite(idx) ? idx + 1 : 0) % list.length;
   try { localStorage.setItem(key, String(next)); } catch {}
   return list[next];
@@ -817,6 +818,15 @@ const TIPS = [
   'Cuenta 5 cosas que ves',
   'Eres más que este momento',
 ];
+
+function startTipsRotation() {
+  try { if (state.tipTimer) { clearInterval(state.tipTimer); state.tipTimer = null; } } catch {}
+  const el = document.getElementById('tipText');
+  if (!el) return;
+  const setTip = () => { el.textContent = TIPS[state.tipIndex % TIPS.length]; state.tipIndex = (state.tipIndex + 1) % TIPS.length; };
+  setTip();
+  state.tipTimer = setInterval(setTip, 7000);
+}
 
 function startTipsRotation() {
   try { if (state.tipTimer) { clearInterval(state.tipTimer); state.tipTimer = null; } } catch {}
