@@ -12,6 +12,26 @@ export function setAuthToken(token) {
   axios.defaults.headers.common['Authorization'] = token ? `Bearer ${token}` : '';
 }
 
+// Simple health check that works for both same-origin and absolute API URLs.
+export async function checkApiHealth() {
+  try {
+    // If API_URL is non-empty, we can hit the backend root '/'
+    if (API_URL) {
+      const url = `${API_URL}/`;
+      const res = await fetch(url, { method: 'GET' });
+      const ok = res.ok || (res.status >= 200 && res.status < 500);
+      return { ok, status: res.status, url };
+    }
+    // Same-origin (Vercel rewrites) → probe a known route under /api
+    const url = '/api/login'; // POST-only route; any response means backend reachable
+    const res = await fetch(url, { method: 'HEAD' });
+    const ok = res.ok || (res.status >= 200 && res.status < 500);
+    return { ok, status: res.status, url };
+  } catch (error) {
+    return { ok: false, status: 0, url: API_URL || '/api', error: String(error?.message || error) };
+  }
+}
+
 export async function register(email, password, name, profile = null) {
   const payload = { email, password, name };
   if (profile && typeof profile === 'object') payload.profile = profile;

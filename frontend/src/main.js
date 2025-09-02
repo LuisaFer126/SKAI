@@ -1,5 +1,5 @@
 import './style.css';
-import { register, login, listSessions, createSession, getMessages, sendMessage } from './api.js';
+import { register, login, listSessions, createSession, getMessages, sendMessage, checkApiHealth } from './api.js';
 import { setAuthToken } from './api.js';
 
 // Persistencia centralizada en src/storage.js
@@ -653,6 +653,28 @@ function escapeHtml(str) {
 (async function init() {
   // Asegura el botón de tema persistente y aplica preferencia
   ensureThemeToggle();
+  // Comprobación ligera de salud de API y aviso visual si falla
+  queueMicrotask(async () => {
+    const bannerId = 'apiStatusBanner';
+    const showBanner = (msg) => {
+      let el = document.getElementById(bannerId);
+      if (!el) {
+        el = document.createElement('div');
+        el.id = bannerId;
+        el.setAttribute('role', 'alert');
+        el.style.cssText = 'position:fixed;top:8px;left:50%;transform:translateX(-50%);max-width:920px;width:calc(100% - 24px);z-index:1000;padding:.75rem 1rem;border-radius:10px;background:#3a1e1e;color:#ffdede;border:1px solid #7a3a3a;box-shadow:0 10px 24px rgba(0,0,0,.35);font-weight:600;';
+        document.body.appendChild(el);
+      }
+      el.textContent = msg;
+    };
+    try {
+      const r = await checkApiHealth();
+      if (!r.ok) {
+        const hint = r.status === 404 ? 'Verifica las rewrites de Vercel a /api y la URL de Railway.' : 'Revisa conectividad o CORS.';
+        showBanner(`No se pudo contactar la API (${r.url}) [${r.status}]. ${hint}`);
+      }
+    } catch { /* silencia errores del banner */ }
+  });
   // Lee estado persistido desde storage.js
   const token = getToken();
   const user = getUser();
