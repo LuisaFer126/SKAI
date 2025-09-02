@@ -745,11 +745,17 @@ function escapeHtml(str) {
 (async function init() {
   // Asegura el botón de tema persistente y aplica preferencia
   ensureThemeToggle();
-  // Descubrir dinámicamente saludos disponibles (saludo1..saludo10, saludo.gif) y almacenarlos
+  // Descubre dinámicamente saludos presentes en /public según prefijos/extensiones
   queueMicrotask(() => {
-    const base = ['/saludo.gif'];
-    const candidates = [];
-    for (let i = 1; i <= 10; i++) candidates.push(`/saludo${i}.gif`);
+    const prefixes = ['saludo', 'saludando'];
+    const exts = ['gif', 'png', 'jpg', 'webp'];
+    const maxN = 20;
+    const bases = prefixes.flatMap(p => exts.map(e => `/${p}.${e}`));
+    const numbered = [];
+    for (let i = 1; i <= maxN; i++) {
+      for (const p of prefixes) for (const e of exts) numbered.push(`/${p}${i}.${e}`);
+    }
+    const candidates = [...numbered, ...bases];
     const check = (src) => new Promise((resolve) => {
       const img = new Image();
       let done = false;
@@ -757,12 +763,18 @@ function escapeHtml(str) {
       img.onload = () => finish(true);
       img.onerror = () => finish(false);
       img.src = src;
-      setTimeout(() => finish(false), 1500);
+      setTimeout(() => finish(false), 1200);
     });
     Promise.all(candidates.map(check)).then((found) => {
       const list = found.filter(Boolean);
-      const finalList = list.length ? [...list] : base;
+      const fallback = ['/saludo.gif', '/saludando.gif', '/reposo.gif'];
+      const finalList = list.length ? list : fallback;
       setVariantList('saludo', finalList);
+      try {
+        const key = 'skai:variant:saludo';
+        const idx = Number(localStorage.getItem(key) || '0');
+        if (!(idx >= 0 && idx < finalList.length)) localStorage.setItem(key, '0');
+      } catch {}
     }).catch(() => {});
   });
   // Comprobación ligera de salud de API y aviso visual si falla
