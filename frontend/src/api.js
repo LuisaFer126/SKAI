@@ -76,8 +76,3 @@ export async function getProfileSuggestions() {
 export async function applyProfileSuggestions() {
   return (await axios.post(`${API_URL}/api/user/profile/apply-suggestions`)).data;
 }
-
-// Emotion Metrics (per user)
-export async function getEmotionMetrics() {
-  return (await axios.get(`${API_URL}/api/user/metrics/emotions`)).data;
-}

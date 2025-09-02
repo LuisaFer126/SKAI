@@ -1,5 +1,5 @@
 import './style.css';
-import { register, login, listSessions, createSession, getMessages, sendMessage, checkApiHealth, getEmotionMetrics } from './api.js';
+import { register, login, listSessions, createSession, getMessages, sendMessage, checkApiHealth } from './api.js';
 import { setAuthToken } from './api.js';
 
 // Persistencia centralizada en src/storage.js
@@ -137,7 +137,6 @@ const state = {
   lastEmotion: null,
   help: null, // Recursos de ayuda en crisis (desde backend)
   helpHidden: false,
-  metrics: null,
 };
 
 // ---------- RENDER ROOT ----------
@@ -273,19 +272,6 @@ function chatView() {
   const avatarAlt = cur.alt;
 
   const userName = state.user?.name ? escapeHtml(state.user.name) : 'Usuario';
-  const m = state.metrics || { happy: 0, sad: 0, updatedAt: null };
-  const metricsHtml = `
-    <section class="card-inner" style="margin-top:.6rem">
-      <div class="session-row" style="align-items:center">
-        <div class="small muted">Emociones del bot</div>
-        <button id="metricsRefresh" class="btn btn--sm" type="button">Actualizar</button>
-      </div>
-      <div class="session-row" style="margin-top:.4rem">
-        <div class="small">Felices: <strong>${Number(m.happy||0)}</strong></div>
-        <div class="small">Tristes: <strong>${Number(m.sad||0)}</strong></div>
-      </div>
-      ${m.updatedAt ? `<div class="small muted">Actualizado: ${formatRelativeTime(m.updatedAt)}</div>` : ''}
-    </section>`;
   return `
   <section class="chat-shell fade-in">
     <!-- Izquierda: sidebar -->
@@ -296,7 +282,6 @@ function chatView() {
       </div>
       <ul class="sessions" id="sessionList">${allSessionsHtml}</ul>
       <div class="sidebar-foot">
-        ${metricsHtml}
         <button id="logout" class="btn full" title="Cerrar sesión">Salir</button>
       </div>
     </aside>
@@ -494,11 +479,6 @@ function bindChat() {
   // Primera sincronización del avatar
   updateEmotionAvatar();
   scrollMessagesBottom();
-
-  // Botón para refrescar métricas
-  document.getElementById('metricsRefresh')?.addEventListener('click', () => {
-    refreshMetrics().catch(()=>{});
-  });
 }
 
 // ---------- DATA OPS ----------
@@ -634,8 +614,6 @@ async function sendCurrentMessage() {
     render();
     scrollMessagesBottom(true);
     updateEmotionAvatar();
-    // Actualiza métricas en background
-    refreshMetrics().catch(()=>{});
   } catch (err) {
     // Asegura que "pensando" se vea el tiempo mínimo antes de notificar error
     const minMs = getThinkingMinMs();
@@ -819,30 +797,3 @@ function escapeHtml(str) {
 
   render();
 })();
-
-async function refreshMetrics() {
-  try {
-    const data = await getEmotionMetrics();
-    // Normaliza y guarda
-    state.metrics = {
-      happy: Number(data.happy || 0),
-      sad: Number(data.sad || 0),
-      updatedAt: data.updatedAt || null,
-      lastHappyAt: data.lastHappyAt || null,
-      lastSadAt: data.lastSadAt || null,
-    };
-    // Re-render sólo si estamos en chat
-    if (state.token) render();
-  } catch {}
-}
-
-function formatRelativeTime(ts) {
-  try {
-    const d = new Date(ts);
-    const diff = (Date.now() - d.getTime())/1000;
-    if (diff < 60) return 'hace unos segundos';
-    if (diff < 3600) return `hace ${Math.floor(diff/60)} min`;
-    if (diff < 86400) return `hace ${Math.floor(diff/3600)} h`;
-    return d.toLocaleString();
-  } catch { return ''; }
-}
