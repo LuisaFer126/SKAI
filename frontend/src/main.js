@@ -745,9 +745,9 @@ function escapeHtml(str) {
 (async function init() {
   // Asegura el botón de tema persistente y aplica preferencia
   ensureThemeToggle();
-  // Descubre dinámicamente saludos presentes en /public según prefijos/extensiones
+  // Descubre dinámicamente saludos presentes en /public (solo prefijo "saludo")
   queueMicrotask(() => {
-    const prefixes = ['saludo', 'saludando'];
+    const prefixes = ['saludo'];
     const exts = ['gif', 'png', 'jpg', 'webp'];
     const maxN = 20;
     const bases = prefixes.flatMap(p => exts.map(e => `/${p}.${e}`));
@@ -767,7 +767,7 @@ function escapeHtml(str) {
     });
     Promise.all(candidates.map(check)).then((found) => {
       const list = found.filter(Boolean);
-      const fallback = ['/saludo.gif', '/saludando.gif', '/reposo.gif'];
+      const fallback = ['/saludo.gif'];
       const finalList = list.length ? list : fallback;
       setVariantList('saludo', finalList);
       try {
