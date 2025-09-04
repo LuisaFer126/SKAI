@@ -1,5 +1,5 @@
 import './style.css';
-import { register, login, listSessions, createSession, getMessages, sendMessage, checkApiHealth } from './api.js';
+import { register, login, listSessions, createSession, getMessages, sendMessage, checkApiHealth, getEmotionMetrics } from './api.js';
 import { setAuthToken } from './api.js';
 
 // Persistencia centralizada en src/storage.js
@@ -73,7 +73,7 @@ const EMOTION_ASSETS = {
 // Secuencias alternables de imágenes (en /public).
 // Para activar, agrega archivos con estos nombres en public/.
 const VARIANT_SETS = {
-  saludo: ['/saludo1.gif', '/saludo2.gif', '/saludo3.gif', '/saludo4.gif', '/saludo.gif'],
+  saludo: ['/saludo1.gif', '/saludo2.gif', '/saludo3.gif', '/saludo.gif'],
   feliz: ['/feliz1.gif', '/feliz2.gif', '/feliz.gif'],
   triste: ['/triste1.gif', '/triste2.gif', '/triste.gif'],
   pensando: ['/pensando1.gif', '/pensando.gif'],
@@ -97,9 +97,8 @@ function nextVariant(name) {
   const key = `skai:variant:${name}`;
   let idx = -1;
   try { idx = Number(localStorage.getItem(key) || '-1'); } catch { idx = -1; }
-  const list = getVariantList(name);
+  const list = VARIANT_SETS[name] || [];
   if (!list.length) return null;
-  if (idx >= list.length) idx = -1;
   const next = (Number.isFinite(idx) ? idx + 1 : 0) % list.length;
   try { localStorage.setItem(key, String(next)); } catch {}
   return list[next];
@@ -138,8 +137,7 @@ const state = {
   lastEmotion: null,
   help: null, // Recursos de ayuda en crisis (desde backend)
   helpHidden: false,
-  tipTimer: null,
-  tipIndex: 0,
+  metrics: null,
 };
 
 // ---------- RENDER ROOT ----------
@@ -159,7 +157,7 @@ function render() {
 
 // ---------- AUTH VIEWS ----------
 function authView() {
-  const saludoSrc = nextVariant('saludo') || '/saludo.gif';
+  const saludoSrc = nextVariant('saludo') || '/saludando.gif';
   return `
   <section class="shell fade-in">
     <div class="auth-grid card-outer">
@@ -171,7 +169,7 @@ function authView() {
         </header>
 
         <figure class="brand-image" aria-label="Imagen de presentación">
-          <img src="${saludoSrc}" alt="Ilustración SKIA" />
+          <img src="/saludando.gif" alt="Ilustración SKIA" />
         </figure>
 
         <section class="brand-copy">
@@ -275,12 +273,18 @@ function chatView() {
   const avatarAlt = cur.alt;
 
   const userName = state.user?.name ? escapeHtml(state.user.name) : 'Usuario';
-  const tipsBox = `
-    <section class="card-inner tips-box desktop-only" aria-live="polite">
-      <div class="tips-head">
-        <div class="tips-title small">Pausa consciente</div>
+  const m = state.metrics || { happy: 0, sad: 0, updatedAt: null };
+  const metricsHtml = `
+    <section class="card-inner" style="margin-top:.6rem">
+      <div class="session-row" style="align-items:center">
+        <div class="small muted">Emociones del bot</div>
+        <button id="metricsRefresh" class="btn btn--sm" type="button">Actualizar</button>
       </div>
-      <div id="tipText">&nbsp;</div>
+      <div class="session-row" style="margin-top:.4rem">
+        <div class="small">Felices: <strong>${Number(m.happy||0)}</strong></div>
+        <div class="small">Tristes: <strong>${Number(m.sad||0)}</strong></div>
+      </div>
+      ${m.updatedAt ? `<div class="small muted">Actualizado: ${formatRelativeTime(m.updatedAt)}</div>` : ''}
     </section>`;
   return `
   <section class="chat-shell fade-in">
@@ -292,7 +296,7 @@ function chatView() {
       </div>
       <ul class="sessions" id="sessionList">${allSessionsHtml}</ul>
       <div class="sidebar-foot">
-        ${tipsBox}
+        ${metricsHtml}
         <button id="logout" class="btn full" title="Cerrar sesión">Salir</button>
       </div>
     </aside>
@@ -490,7 +494,11 @@ function bindChat() {
   // Primera sincronización del avatar
   updateEmotionAvatar();
   scrollMessagesBottom();
-  startTipsRotation();
+
+  // Botón para refrescar métricas
+  document.getElementById('metricsRefresh')?.addEventListener('click', () => {
+    refreshMetrics().catch(()=>{});
+  });
 }
 
 // ---------- DATA OPS ----------
@@ -626,6 +634,8 @@ async function sendCurrentMessage() {
     render();
     scrollMessagesBottom(true);
     updateEmotionAvatar();
+    // Actualiza métricas en background
+    refreshMetrics().catch(()=>{});
   } catch (err) {
     // Asegura que "pensando" se vea el tiempo mínimo antes de notificar error
     const minMs = getThinkingMinMs();
@@ -745,17 +755,11 @@ function escapeHtml(str) {
 (async function init() {
   // Asegura el botón de tema persistente y aplica preferencia
   ensureThemeToggle();
-  // Descubre dinámicamente saludos presentes en /public (solo prefijo "saludo")
+  // Descubrir dinámicamente saludos disponibles (saludo1..saludo10, saludo.gif) y almacenarlos
   queueMicrotask(() => {
-    const prefixes = ['saludo'];
-    const exts = ['gif', 'png', 'jpg', 'webp'];
-    const maxN = 20;
-    const bases = prefixes.flatMap(p => exts.map(e => `/${p}.${e}`));
-    const numbered = [];
-    for (let i = 1; i <= maxN; i++) {
-      for (const p of prefixes) for (const e of exts) numbered.push(`/${p}${i}.${e}`);
-    }
-    const candidates = [...numbered, ...bases];
+    const base = ['/saludo.gif'];
+    const candidates = [];
+    for (let i = 1; i <= 10; i++) candidates.push(`/saludo${i}.gif`);
     const check = (src) => new Promise((resolve) => {
       const img = new Image();
       let done = false;
@@ -763,55 +767,13 @@ function escapeHtml(str) {
       img.onload = () => finish(true);
       img.onerror = () => finish(false);
       img.src = src;
-      setTimeout(() => finish(false), 1200);
+      setTimeout(() => finish(false), 1500);
     });
     Promise.all(candidates.map(check)).then((found) => {
       const list = found.filter(Boolean);
-      const fallback = ['/saludo.gif'];
-      const finalList = list.length ? list : fallback;
+      const finalList = list.length ? [...list] : base;
       setVariantList('saludo', finalList);
-      try {
-        const key = 'skai:variant:saludo';
-        const idx = Number(localStorage.getItem(key) || '0');
-        if (!(idx >= 0 && idx < finalList.length)) localStorage.setItem(key, '0');
-      } catch {}
     }).catch(() => {});
-  });
-  // Descubre dinámicamente variantes de emociones presentes en /public
-  queueMicrotask(() => {
-    const exts = ['gif','png','jpg','webp'];
-    const specs = [
-      { name: 'feliz', prefixes: ['feliz'], fallback: ['/feliz.gif'] },
-      { name: 'triste', prefixes: ['triste'], fallback: ['/triste.gif'] },
-      { name: 'pensando', prefixes: ['pensando'], fallback: ['/pensando.gif'] },
-      { name: 'predeterminado', prefixes: ['reposo','idle','default'], fallback: ['/reposo.gif'] },
-    ];
-    const check = (src) => new Promise((resolve) => {
-      const img = new Image();
-      let done = false;
-      const finish = (ok) => { if (done) return; done = true; resolve(ok ? src : null); };
-      img.onload = () => finish(true);
-      img.onerror = () => finish(false);
-      img.src = src;
-      setTimeout(() => finish(false), 1200);
-    });
-    specs.forEach(({ name, prefixes, fallback }) => {
-      const candidates = [];
-      for (let i = 1; i <= 20; i++) {
-        for (const p of prefixes) for (const e of exts) candidates.push(`/${p}${i}.${e}`);
-      }
-      for (const p of prefixes) for (const e of exts) candidates.push(`/${p}.${e}`);
-      Promise.all(candidates.map(check)).then((found) => {
-        const list = found.filter(Boolean);
-        const finalList = list.length ? list : fallback;
-        setVariantList(name, finalList);
-        try {
-          const key = `skai:variant:${name}`;
-          const idx = Number(localStorage.getItem(key) || '0');
-          if (!(idx >= 0 && idx < finalList.length)) localStorage.setItem(key, '0');
-        } catch {}
-      }).catch(() => {});
-    });
   });
   // Comprobación ligera de salud de API y aviso visual si falla
   queueMicrotask(async () => {
@@ -858,29 +820,29 @@ function escapeHtml(str) {
   render();
 })();
 
-const TIPS = [
-  'Inhala 4, retén 4, exhala 6',
-  'Relaja hombros y mandíbula',
-  'Pon nombre a lo que sientes',
-  'Una cosa pequeña que puedas hacer ahora',
-  'Cuenta 5 cosas que ves',
-  'Eres más que este momento',
-];
-
-function startTipsRotation() {
-  try { if (state.tipTimer) { clearInterval(state.tipTimer); state.tipTimer = null; } } catch {}
-  const el = document.getElementById('tipText');
-  if (!el) return;
-  const setTip = () => { el.textContent = TIPS[state.tipIndex % TIPS.length]; state.tipIndex = (state.tipIndex + 1) % TIPS.length; };
-  setTip();
-  state.tipTimer = setInterval(setTip, 7000);
+async function refreshMetrics() {
+  try {
+    const data = await getEmotionMetrics();
+    // Normaliza y guarda
+    state.metrics = {
+      happy: Number(data.happy || 0),
+      sad: Number(data.sad || 0),
+      updatedAt: data.updatedAt || null,
+      lastHappyAt: data.lastHappyAt || null,
+      lastSadAt: data.lastSadAt || null,
+    };
+    // Re-render sólo si estamos en chat
+    if (state.token) render();
+  } catch {}
 }
 
-function startTipsRotation() {
-  try { if (state.tipTimer) { clearInterval(state.tipTimer); state.tipTimer = null; } } catch {}
-  const el = document.getElementById('tipText');
-  if (!el) return;
-  const setTip = () => { el.textContent = TIPS[state.tipIndex % TIPS.length]; state.tipIndex = (state.tipIndex + 1) % TIPS.length; };
-  setTip();
-  state.tipTimer = setInterval(setTip, 7000);
+function formatRelativeTime(ts) {
+  try {
+    const d = new Date(ts);
+    const diff = (Date.now() - d.getTime())/1000;
+    if (diff < 60) return 'hace unos segundos';
+    if (diff < 3600) return `hace ${Math.floor(diff/60)} min`;
+    if (diff < 86400) return `hace ${Math.floor(diff/3600)} h`;
+    return d.toLocaleString();
+  } catch { return ''; }
 }
