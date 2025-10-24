@@ -1,0 +1,12 @@
+C:\Users\ASUS\TallerWEBAPI\WebApi.Domain\bin\Debug\net9.0\WebApi.Domain.deps.json
+C:\Users\ASUS\TallerWEBAPI\WebApi.Domain\bin\Debug\net9.0\WebApi.Domain.dll
+C:\Users\ASUS\TallerWEBAPI\WebApi.Domain\bin\Debug\net9.0\WebApi.Domain.pdb
+C:\Users\ASUS\TallerWEBAPI\WebApi.Domain\obj\Debug\net9.0\WebApi.Domain.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\ASUS\TallerWEBAPI\WebApi.Domain\obj\Debug\net9.0\WebApi.Domain.AssemblyInfoInputs.cache
+C:\Users\ASUS\TallerWEBAPI\WebApi.Domain\obj\Debug\net9.0\WebApi.Domain.AssemblyInfo.cs
+C:\Users\ASUS\TallerWEBAPI\WebApi.Domain\obj\Debug\net9.0\WebApi.Domain.csproj.CoreCompileInputs.cache
+C:\Users\ASUS\TallerWEBAPI\WebApi.Domain\obj\Debug\net9.0\WebApi.Domain.sourcelink.json
+C:\Users\ASUS\TallerWEBAPI\WebApi.Domain\obj\Debug\net9.0\WebApi.Domain.dll
+C:\Users\ASUS\TallerWEBAPI\WebApi.Domain\obj\Debug\net9.0\refint\WebApi.Domain.dll
+C:\Users\ASUS\TallerWEBAPI\WebApi.Domain\obj\Debug\net9.0\WebApi.Domain.pdb
+C:\Users\ASUS\TallerWEBAPI\WebApi.Domain\obj\Debug\net9.0\ref\WebApi.Domain.dll
